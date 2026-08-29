@@ -2,6 +2,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -612,10 +613,17 @@ export async function startServer(customPort?: number): Promise<{
 }
 
 
-// Auto-start if run directly
-const isDirectRun = process.argv[1] && (
-  path.basename(process.argv[1]) === "mcp-server.ts" || 
-  path.basename(process.argv[1]) === "mcp-server.js"
+// Auto-start if run directly or managed by PM2
+const currentFilePath = fileURLToPath(import.meta.url);
+const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
+
+const isDirectRun = Boolean(
+  process.env.pm_id !== undefined ||
+  (entryPath && (
+    entryPath === currentFilePath ||
+    entryPath.endsWith("mcp-server.ts") ||
+    entryPath.endsWith("mcp-server.js")
+  ))
 );
 
 if (isDirectRun) {
