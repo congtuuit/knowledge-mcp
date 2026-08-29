@@ -164,11 +164,14 @@
     "patterns": [
       "Node.js DatabaseSync (node:sqlite) for native fast synchronous SQLite access without external C++ compilation issues",
       "Float32Array buffer conversion to Uint8Array for compact BLOB storage in SQLite",
-      "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores without score normalization issues"
+      "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores without score normalization issues",
+      "Base64 image stripping in Markdown chunker to keep knowledge base compact and free of binary string noise",
+      "PM2 daemon deployment on local machine for persistent zero-downtime MCP background serving on Windows"
     ],
     "gotchas": [
       "FTS5 MATCH requires query escaping (stripping special chars, wrapping terms in quotes or OR) to avoid syntax errors",
-      "Streamable HTTP MCP requires handling SSE/HTTP transport correctly with @modelcontextprotocol/sdk"
+      "Streamable HTTP MCP requires handling SSE/HTTP transport correctly with @modelcontextprotocol/sdk and session tracking via Mcp-Session-Id header"
     ]
   }
 }
+

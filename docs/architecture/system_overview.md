@@ -52,4 +52,5 @@ Knowledge MCP Server là một hệ thống lưu trữ và truy xuất tri thứ
 | **Contextualizer**| `src/contextualizer.ts` | Tạo 1-2 câu ngữ cảnh tóm tắt vị trí chunk trong văn bản trước khi embed |
 | **Ingestion** | `src/ingest.ts` | Quét thư mục `VAULT_DIR`, tính toán SHA256 diff, đồng bộ hóa SQLite DB và xóa chunk mồ côi |
 | **Search Engine** | `src/search.ts` | Thực hiện tìm kiếm FTS5 BM25, vector cosine similarity và kết hợp bằng Reciprocal Rank Fusion (RRF) |
-| **MCP Server** | `src/mcp-server.ts` | Express server vận hành `StreamableHTTPServerTransport` và 7 MCP tools |
+| **MCP Server** | `src/mcp-server.ts` | Express server vận hành `StreamableHTTPServerTransport` (multi-session) và 8 MCP tools |
+
