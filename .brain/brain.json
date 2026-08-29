@@ -1,0 +1,174 @@
+{
+  "meta": {
+    "schema_version": "1.1.0",
+    "awf_version": "4.0.2",
+    "last_updated": "2026-08-28T17:04:00+07:00"
+  },
+  "project": {
+    "name": "knowledge-mcp",
+    "type": "MCP Server / Knowledge Retrieval & Ingestion Layer",
+    "status": "Completed (All 7 Phases Implemented & Tested)",
+    "description": "Kho kiến thức cá nhân (local) expose qua MCP streamable-HTTP cho Claude Code, ChatGPT/Codex, Antigravity CLI và bất kỳ MCP client nào."
+  },
+  "tech_stack": {
+    "runtime": "Node.js (>=20, ESM)",
+    "language": "TypeScript 5.7",
+    "database": "SQLite (node:sqlite DatabaseSync) with FTS5",
+    "mcp_sdk": "@modelcontextprotocol/sdk ^1.12.1",
+    "server": "Express ^4.21.2 (Streamable HTTP transport)",
+    "vector_search": "Brute-force Cosine Similarity + Reciprocal Rank Fusion (RRF)",
+    "embedding_provider": "OpenAI-compatible endpoint (Ollama nomic-embed-text 768-dim / external)",
+    "contextual_retrieval": "Anthropic Contextual Retrieval prompt via OpenAI-compatible chat endpoint"
+  },
+  "database_schema": {
+    "summary": "SQLite database local (knowledge.db) lưu trữ metadata file và các chunks kèm embedding float32 và chỉ mục full-text search FTS5",
+    "tables": [
+      {
+        "name": "files",
+        "description": "Quản lý danh sách file trong vault",
+        "columns": [
+          "id (TEXT PK)",
+          "path (TEXT UNIQUE)",
+          "file_hash (TEXT SHA256)",
+          "mtime (INTEGER)",
+          "updated_at (INTEGER)"
+        ]
+      },
+      {
+        "name": "chunks",
+        "description": "Lưu các phân đoạn văn bản, heading path, embedding và hash để diff",
+        "columns": [
+          "id (TEXT PK)",
+          "file_id (TEXT FK->files.id ON DELETE CASCADE)",
+          "chunk_index (INTEGER)",
+          "heading_path (TEXT)",
+          "content (TEXT)",
+          "contextualized_content (TEXT)",
+          "content_hash (TEXT SHA256)",
+          "embedding (BLOB)",
+          "embedding_model (TEXT)",
+          "created_at (INTEGER)"
+        ]
+      },
+      {
+        "name": "chunks_fts",
+        "description": "Bảng ảo SQLite FTS5 đồng bộ tự động với bảng chunks qua triggers (AFTER INSERT, AFTER DELETE, AFTER UPDATE)",
+        "columns": [
+          "content",
+          "contextualized_content"
+        ]
+      }
+    ],
+    "relationships_explained": "1 file có nhiều chunks. Khi xóa file, tất cả chunks tự động xóa theo (CASCADE). Khi insert/update/delete chunk, triggers tự động cập nhật FTS5."
+  },
+  "api_endpoints": [
+    {
+      "path": "POST /mcp",
+      "transport": "Streamable HTTP",
+      "auth": "Bearer Token (Authorization: Bearer <MCP_AUTH_TOKEN>)",
+      "explained": "MCP endpoint phục vụ trao đổi JSON-RPC theo chuẩn Model Context Protocol streamable-HTTP",
+      "tools": [
+        {
+          "name": "hybrid_search",
+          "description": "Tìm kiếm kết hợp Full-text BM25 + Vector Cosine qua RRF"
+        },
+        {
+          "name": "keyword_search",
+          "description": "Tìm kiếm từ khóa qua SQLite FTS5 BM25"
+        },
+        {
+          "name": "similar_notes",
+          "description": "Tìm kiếm tương đồng ngữ nghĩa qua Cosine Similarity"
+        },
+        {
+          "name": "read_note",
+          "description": "Đọc nội dung note từ vault (chặn path traversal)"
+        },
+        {
+          "name": "list_notes",
+          "description": "Liệt kê danh sách notes trong vault (hỗ trợ prefix)"
+        },
+        {
+          "name": "context_for_query",
+          "description": "Lấy đoạn context tổng hợp theo query có giới hạn maxTokens"
+        },
+        {
+          "name": "write_note",
+          "description": "Tạo note mới vào vault và tự động reindex ngay lập tức"
+        },
+        {
+          "name": "append_note",
+          "description": "Ghi thêm nội dung vào note và tự động reindex"
+        }
+      ]
+    }
+  ],
+  "business_rules": [
+    "Retriever & Storage Layer Only: Server không sinh câu trả lời cuối cùng, chỉ cung cấp công cụ tìm kiếm và lưu trữ cho AI agent.",
+    "Incremental Ingest / Diffing: Chỉ embed lại những chunk có sha256(content) thay đổi so với DB; chunk cũ giữ nguyên.",
+    "Auto Reindex on Mutation: write_note và append_note luôn tự động trigger runIngest({ onlyFile: path }) để cập nhật index tức thì.",
+    "Path Traversal Prevention: Các thao tác đọc/ghi file luôn chuẩn hóa đường dẫn và chặn truy cập ngoài VAULT_DIR.",
+    "Graceful Fallback: Lỗi embedding của một chunk không làm crash toàn bộ batch, chunk vẫn được lưu với embedding NULL và search được qua FTS5."
+  ],
+  "features": [
+    {
+      "phase": 1,
+      "name": "Database Layer",
+      "status": "completed",
+      "file": "src/db.ts"
+    },
+    {
+      "phase": 2,
+      "name": "Chunking Engine",
+      "status": "completed",
+      "file": "src/chunker.ts"
+    },
+    {
+      "phase": 3,
+      "name": "Embedding & Contextual Retrieval",
+      "status": "completed",
+      "files": [
+        "src/embedder.ts",
+        "src/contextualizer.ts"
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Incremental Ingest Pipeline",
+      "status": "completed",
+      "files": [
+        "src/ingest.ts",
+        "scripts/reindex.ts"
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Hybrid Search (BM25 + Vector + RRF)",
+      "status": "completed",
+      "file": "src/search.ts"
+    },
+    {
+      "phase": 6,
+      "name": "MCP Server Implementation",
+      "status": "completed",
+      "file": "src/mcp-server.ts"
+    },
+    {
+      "phase": 7,
+      "name": "Documentation & Client Integration",
+      "status": "completed",
+      "file": "README.md"
+    }
+  ],
+  "knowledge_items": {
+    "patterns": [
+      "Node.js DatabaseSync (node:sqlite) for native fast synchronous SQLite access without external C++ compilation issues",
+      "Float32Array buffer conversion to Uint8Array for compact BLOB storage in SQLite",
+      "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores without score normalization issues"
+    ],
+    "gotchas": [
+      "FTS5 MATCH requires query escaping (stripping special chars, wrapping terms in quotes or OR) to avoid syntax errors",
+      "Streamable HTTP MCP requires handling SSE/HTTP transport correctly with @modelcontextprotocol/sdk"
+    ]
+  }
+}

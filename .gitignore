@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+*.log
+.brain/session.json
