@@ -62,8 +62,16 @@ function splitLongText(text: string, maxChars: number, overlapChars: number): st
   return chunks;
 }
 
+export function cleanMarkdownContent(text: string): string {
+  // Strip inline base64 images to prevent bloating vector/FTS index with meaningless noise
+  return text
+    .replace(/!\[(.*?)\]\(data:image\/[^;]+;base64,[^\)]+\)/gi, "![$1]")
+    .replace(/<img\s+[^>]*src=["']data:image\/[^;]+;base64,[^"']+["'][^>]*>/gi, "[image]");
+}
+
 export function chunkMarkdown(text: string): MarkdownChunkOutput {
-  const parsed = matter(text);
+  const cleanedInput = cleanMarkdownContent(text);
+  const parsed = matter(cleanedInput);
   const rawContent = parsed.content;
   const maxChars = config.chunk.maxTokensApprox * 4;
   const overlapChars = config.chunk.overlapApprox * 4;
@@ -130,12 +138,14 @@ export function chunkMarkdown(text: string): MarkdownChunkOutput {
 }
 
 export function chunkPlainText(text: string): ChunkResult[] {
+  const cleaned = cleanMarkdownContent(text);
   const maxChars = config.chunk.maxTokensApprox * 4;
   const overlapChars = config.chunk.overlapApprox * 4;
-  const subChunks = splitLongText(text, maxChars, overlapChars);
+  const subChunks = splitLongText(cleaned, maxChars, overlapChars);
 
   return subChunks.map((content) => ({
     headingPath: "",
     content,
   }));
 }
+

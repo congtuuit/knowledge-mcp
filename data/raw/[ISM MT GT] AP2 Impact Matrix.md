@@ -1,0 +1,95 @@
+# \[ISM MT GT\] AP2 Impact Matrix
+
+# General Information
+
+| **Project Manager** | [Dan Nguyen](https://b-project.atlassian.net/wiki/people/712020:a032650c-f99a-49c7-83ea-0d1c7f748f10?ref=confluence)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contributors**    | [Kha Phạm](https://b-project.atlassian.net/wiki/people/5b8e58668aaa0f2bd11fa513?ref=confluence) [Tuấn Trần](https://b-project.atlassian.net/wiki/people/6088deaf33d52500690bdc35?ref=confluence) [Lộc Nguyễn](https://b-project.atlassian.net/wiki/people/557058:78c424bb-7a5e-4b15-921a-3310b63bf039?ref=confluence)[Quy Lý](https://b-project.atlassian.net/wiki/people/632bc99c3ac41ebde7699beb?ref=confluence) [Thuận Nguyễn](https://b-project.atlassian.net/wiki/people/631b0f5c62fe1e6eac6e6b31?ref=confluence) [Hạnh Võ](https://b-project.atlassian.net/wiki/people/6049fde8ad0d2e00685b13b2?ref=confluence) |
+| **Informed**        | AMS Members                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Objective**       | This document provides a centralized impact matrix for shared features across ISM, MT, GT, and AP2. It helps AMS members identify potential cross-project impacts before implementing any change.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Prerequisites**   | AMS members must review this impact matrix during impact analysis before development and deployment. [\[ISM MT GT\] How to Handle AMS Ticket Requests](https://b-project.atlassian.net/wiki/spaces/NSPP/pages/1716092929/ISM+MT+GT+How+to+Handle+AMS+Ticket+Requests)                                                                                                                                                                                                                                                                                                                                                 |
+
+## 1\. How to Use This Document
+
+Before implementing a Bug Fixing, Support Request, or Enhancement, AMS members must identify the affected feature in the Impact Matrix below.
+
+If the feature is shared across multiple projects, impact analysis and regression testing must include all affected projects.
+
+## 2. Impact Level Definition
+
+| **Impact Level** | **Definition**                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| 🔴 **High**      | Feature/resource is directly shared. A change may immediately affect multiple projects.                  |
+| 🟡 **Medium**    | Implementation is shared, but /behavior/content/UIUX may be project-specific. Impact review is required. |
+| 🟢 **Low**       | Feature is mostly isolated. Cross-project impact is unlikely.                                            |
+| ⚪ **N/A**       | Feature is not used by the project.                                                                      |
+
+| **Marker** | **Definition**                            |
+| ---------- | ----------------------------------------- |
+| ✅         | Applicable / Yes                          |
+| ❌         | Not Applicable / No                       |
+| ⚠️         | Consideration Required / Potential Impact |
+
+## 3. Languages Definition
+
+| **Countries Level** | **Languages**                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| ISM                 | English (PH, US, DE), German, French, Italian, Spanish (ES, MX), Portuguese (PT), **Korean, Vietnamese**                                      |
+| MT                  | English (UK, PH, IN, US), German, French, Italian, Spanish (ES, MX), Portuguese (PT, BR), **Thai, Vietnamese, Korean, Chinese (TW), Turkish** |
+| GT                  | English (PH, DE), German, French, Italian, Spanish, **Chinese (TW), Vietnamese**                                                              |
+
+## 3. Feature Impact Matrix
+
+| **Feature / Function**                                                                           | **AP2** | **ISM** | **MT** | **GT** | **Shared Resource**                          | **Impact Level** | **Impact Notes**                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------ | ------- | ------- | ------ | ------ | -------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Global Dictionary                                                                                | ✅      | ✅      | ✅     | ✅     | Sitecore Items                               | 🔴 High          | Common dictionary items/languages are shared                                                                                                                                                                                                              |
+| Global Search                                                                                    | ✅      | ✅      | ✅     | ✅     | Rendering/ Code                              | 🔴 High          | Shared logic with project-specific configuration                                                                                                                                                                                                          |
+| Base Product                                                                                     | ✅      | ✅      | ✅     | ✅     | Template                                     | 🔴 High          | ISM MT GT inherit base product template, Changes template may affect multiple countries **(Share/Unshared/Version/Unversion)**                                                                                                                            |
+| SEO                                                                                              | ✅      | ✅      | ✅     | ✅     | Code / Rendering / Templates                 | 🔴 High          | For any SEO-related requirement from AP2, we need to inform the ISM, MT, and GT teams and obtain their confirmation to ensure consistency across all sites.                                                                                               |
+| Sitemap XML                                                                                      | ✅      | ✅      | ✅     | ✅     | Rendering/ Code                              | 🔴 High          | Changes may affect multiple countries                                                                                                                                                                                                                     |
+| Sitemap API/Page                                                                                 | ✅      | ✅      | ❌     | ✅     | Rendering/ Code/Templates                    | 🔴 High          | Changes may affect multiple countrie                                                                                                                                                                                                                      |
+| Product Listing Page                                                                             | ✅      | ✅      | ✅     | ✅     | Code / Templates                             | 🔴 High          | Changes may affect multiple countries                                                                                                                                                                                                                     |
+| Brother Workflow (Content/Product/Email flow)                                                    | ✅      | ✅      | ✅     | ✅     | Code / Pipeline                              | 🔴 High          | Changes may affect multiple countries                                                                                                                                                                                                                     |
+| URL/Redirect/Media pipeline                                                                      | ✅      | ✅      | ✅     | ✅     | Code / Pipeline                              | 🔴 High          | Changes may affect multiple countries                                                                                                                                                                                                                     |
+| Forms                                                                                            | ✅      | ✅      | ❌     | ✅     | Code / Rendering / Templates                 | 🔴 High          | Shared form implementation. Changes may affect multiple countries                                                                                                                                                                                         |
+| Footer                                                                                           | ✅      | ✅      | ✅     | ✅     | Rendering / Code                             | 🔴 High          | Shared implementation                                                                                                                                                                                                                                     |
+| Product Detail Page                                                                              | ✅      | ✅      | ✅     | ✅     | Code / Rendering / Templates                 | 🟡 Medium        | Shared PDP implementation, but ISM MT GT has some specific requirement, not reuse at all                                                                                                                                                                  |
+| Header                                                                                           | ✅      | ✅      | ✅     | ✅     | Rendering / Code                             | 🟡 Medium        | Shared implementation with site-specific project.                                                                                                                                                                                                         |
+| Brother Component/Rendering Variant <br>(Banner/Brother Promo/Product Caruesel/Custom Accordian) | ✅      | ⚠️      | ⚠️     | ⚠️     | Rendering / Code / Templates                 | 🟡 Medium        | Impact cases: If there are using on 3 sites or new component wtih all countries                                                                                                                                                                           |
+| Import Tool                                                                                      | ✅      | ❌      | ❌     | ✅     | Product/Supply/Variant/Accessory Import Tool | 🟡 Medium        | ISM and MT have separate code implementations, while GT and AP2 share the same implementation. However, for any enhancement or change request that may impact shared functionality, the ISM, MT, and GT teams must be informed and consulted accordingly. |
+| News                                                                                             | ✅      | ❌      | ✅     | ❌     | Rendering / Code / Templates                 | 🟡 Medium        | Shared implementation                                                                                                                                                                                                                                     |
+| Blog                                                                                             | ✅      | ✅      | ✅     | ❌     | Rendering / Code / Templates                 | 🟡 Medium        | Shared implementation <br><br/>AP2: Blog <br>ISM: News <br>MT: Customer Success/Article                                                                                                                                                                   |
+| Variant Detail Page                                                                              | ❌      | ❌      | ✅     | ❌     | Rendering / Code / Templates                 | 🟢 **Low**       | Variant Detail features used only for MT site                                                                                                                                                                                                             |
+| Accessory Detail Page                                                                            | ❌      | ✅      | ❌     | ❌     | Rendering / Code / Templates                 | 🟢 **Low**       | Accessory Detail features used only for ISM site                                                                                                                                                                                                          |
+| Supply                                                                                           | ✅      | ❌      | ❌     | ❌     | Rendering / Code / Templates                 | ⚪ **N/A**       | N/A                                                                                                                                                                                                                                                       |
+| FAQ                                                                                              | ✅      | ❌      | ❌     | ❌     | Rendering / Code / Templates                 | ⚪ **N/A**       | N/A                                                                                                                                                                                                                                                       |
+| Price Number                                                                                     | ✅      | ❌      | ❌     | ❌     | Code / Templates                             | ⚪ **N/A**       | N/A                                                                                                                                                                                                                                                       |
+| BS/Case Stuides/Promotions                                                                       | ✅      | ❌      | ❌     | ❌     | Rendering / Code / Templates                 | ⚪ **N/A**       | N/A                                                                                                                                                                                                                                                       |
+
+## 4. Shared Resource Matrix
+
+| **Shared Resource**       | **AP2** | **ISM** | **MT** | **GT** | **Change Impact**                             |
+| ------------------------- | ------- | ------- | ------ | ------ | --------------------------------------------- |
+| Portal Azure              | ✅      | ✅      | ✅     | ✅     | AppService/AppConfigruation/FrontDoor/Caching |
+| Sitecore Configuration    | ✅      | ✅      | ✅     | ✅     | Sitecore Config, Caching, SXA, Search         |
+| Search / Solr             | ✅      | ✅      | ✅     | ✅     | Check indexes and search behavior             |
+| Portal Product/Middleware | ❌      | ❌      | ✅     | ✅     | Platform seperate for ISM MT                  |
+| Media / Image Processing  | ✅      | ✅      | ✅     | ✅     | Check upload and storefront rendering         |
+
+## 5\. ISM MT GT Themes CSS/JS Inheritance
+
+| **Themes**    | **AP2** | **ISM** | **MT** | **GT** |
+| ------------- | ------- | ------- | ------ | ------ |
+| Global        | ✅      | ✅      | ✅     | ✅     |
+| Global Lite   | ✅      | ✅      | ✅     | ✅     |
+| Header/Footer | ✅      | ✅      | ✅     | ✅     |
+| Commerce      | ❌      | ❌      | ❌     | ✅     |
+
+# 6\. Impact Analysis Checklist
+
+- Define affected countries (AP2 ISM MT GT)
+- Identify the affected feature/function
+- Identify shared code/rendering/template/configuration before implementation
+- Note Sitecore items changed in the impact detail
+- Check language/localization impact
+- Confirm impact with relevant Technical Lead if shared
