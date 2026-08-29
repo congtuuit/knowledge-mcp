@@ -1,39 +1,112 @@
 ﻿import { mergeRrf, type SearchResult } from "../src/search.js";
 
-console.log("=== TEST: RRF Merge Logic (Pure Unit Test) ===");
+console.log("=================================================");
+console.log("🧪 UNIT TEST SUITE: RRF (Reciprocal Rank Fusion)");
+console.log("=================================================\n");
 
-const itemA: SearchResult = { chunkId: "chunk-A", filePath: "docA.md", headingPath: "Heading A", content: "Content A", score: 0.95 };
-const itemB: SearchResult = { chunkId: "chunk-B", filePath: "docB.md", headingPath: "Heading B", content: "Content B", score: 0.85 };
-const itemC: SearchResult = { chunkId: "chunk-C", filePath: "docC.md", headingPath: "Heading C", content: "Content C", score: 0.75 };
-const itemD: SearchResult = { chunkId: "chunk-D", filePath: "docD.md", headingPath: "Heading D", content: "Content D", score: 0.65 };
+function mockItem(id: string, score: number = 1.0): SearchResult {
+  return {
+    chunkId: id,
+    filePath: `docs/${id}.md`,
+    headingPath: `Heading ${id}`,
+    content: `Content for chunk ${id}`,
+    score,
+  };
+}
 
-// Case 1: itemA is #1 in keyword and #1 in vector -> must be #1 with sum of scores
-const keyword1 = [itemA, itemB];
-const vector1 = [itemA, itemC];
+let passed = 0;
+let total = 0;
 
-const rrfResults1 = mergeRrf(keyword1, vector1, 5, 60);
-console.log("Test 1 - Overlapping item rank 1:", rrfResults1.map(r => `${r.chunkId} (score: ${r.score.toFixed(6)})`));
+function it(name: string, fn: () => void) {
+  total++;
+  try {
+    fn();
+    console.log(`  ✅ PASS: ${name}`);
+    passed++;
+  } catch (err) {
+    console.error(`  ❌ FAIL: ${name}`);
+    console.error(`     Error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
 
-console.assert(rrfResults1[0].chunkId === "chunk-A", "FAIL: chunk-A should be top ranked");
-const expectedScoreA = (1 / (60 + 0 + 1)) + (1 / (60 + 0 + 1));
-console.assert(Math.abs(rrfResults1[0].score - expectedScoreA) < 1e-9, `FAIL: Expected score ${expectedScoreA}, got ${rrfResults1[0].score}`);
-console.log("✅ Test 1 PASS");
+// Test 1: Overlapping top item gets highest combined score
+it("should sum reciprocal ranks when an item appears in both keyword and vector lists", () => {
+  const kw = [mockItem("doc-A"), mockItem("doc-B")];
+  const vec = [mockItem("doc-A"), mockItem("doc-C")];
 
-// Case 2: itemB is #2 in keyword (score 1/62), itemC is #2 in vector (score 1/62) -> both have identical RRF score
-console.assert(Math.abs(rrfResults1[1].score - (1 / 62)) < 1e-9, "FAIL: Rank 2 score mismatch");
-console.assert(Math.abs(rrfResults1[2].score - (1 / 62)) < 1e-9, "FAIL: Rank 3 score mismatch");
-console.log("✅ Test 2 PASS");
+  const results = mergeRrf(kw, vec, 5, 60);
 
-// Case 3: Empty inputs
-const emptyRes = mergeRrf([], [], 5, 60);
-console.assert(emptyRes.length === 0, "FAIL: Empty inputs should return empty array");
-console.log("✅ Test 3 PASS (Empty inputs)");
+  const expectedA = (1 / 61) + (1 / 61);
+  if (results[0].chunkId !== "doc-A") throw new Error(`Expected doc-A at rank 1, got ${results[0].chunkId}`);
+  if (Math.abs(results[0].score - expectedA) > 1e-9) {
+    throw new Error(`Expected score ${expectedA}, got ${results[0].score}`);
+  }
+});
 
-// Case 4: Cutoff k works properly
-const keyword4 = [itemA, itemB, itemC, itemD];
-const vector4 = [itemD, itemC, itemB, itemA];
-const top2 = mergeRrf(keyword4, vector4, 2, 60);
-console.assert(top2.length === 2, `FAIL: Expected 2 items with k=2, got ${top2.length}`);
-console.log("✅ Test 4 PASS (k-cutoff)");
+// Test 2: Disjoint sets
+it("should merge completely disjoint keyword and vector candidate sets", () => {
+  const kw = [mockItem("kw-1"), mockItem("kw-2")];
+  const vec = [mockItem("vec-1"), mockItem("vec-2")];
 
-console.log("\n=== ALL RRF UNIT TESTS PASSED ===");
+  const results = mergeRrf(kw, vec, 10, 60);
+
+  if (results.length !== 4) throw new Error(`Expected 4 merged items, got ${results.length}`);
+  const topScores = [results[0].score, results[1].score];
+  if (Math.abs(topScores[0] - (1 / 61)) > 1e-9 || Math.abs(topScores[1] - (1 / 61)) > 1e-9) {
+    throw new Error(`Top 2 disjoint items should both have score 1/61, got ${topScores}`);
+  }
+});
+
+// Test 3: Asymmetric sizes
+it("should handle asymmetric input sizes gracefully", () => {
+  const kw = [mockItem("kw-1"), mockItem("kw-2"), mockItem("kw-3"), mockItem("kw-4"), mockItem("kw-5")];
+  const vec = [mockItem("vec-1")];
+
+  const results = mergeRrf(kw, vec, 10, 60);
+  if (results.length !== 6) throw new Error(`Expected 6 items, got ${results.length}`);
+});
+
+// Test 4: Cutoff k works
+it("should respect k limit when total unique items > k", () => {
+  const kw = Array.from({ length: 20 }, (_, i) => mockItem(`kw-${i}`));
+  const vec = Array.from({ length: 20 }, (_, i) => mockItem(`vec-${i}`));
+
+  const results = mergeRrf(kw, vec, 7, 60);
+  if (results.length !== 7) throw new Error(`Expected exactly 7 items, got ${results.length}`);
+});
+
+// Test 5: k larger than candidate count
+it("should return all items when k is larger than candidate count", () => {
+  const kw = [mockItem("only-1")];
+  const vec = [mockItem("only-2")];
+
+  const results = mergeRrf(kw, vec, 50, 60);
+  if (results.length !== 2) throw new Error(`Expected 2 items, got ${results.length}`);
+});
+
+// Test 6: Empty inputs
+it("should return empty array when both inputs are empty", () => {
+  const results = mergeRrf([], [], 10, 60);
+  if (results.length !== 0) throw new Error(`Expected 0 items, got ${results.length}`);
+});
+
+// Test 7: Monotonic descending sort order
+it("should guarantee strictly non-increasing (descending) RRF scores", () => {
+  const kw = Array.from({ length: 15 }, (_, i) => mockItem(`item-${i % 5}`));
+  const vec = Array.from({ length: 15 }, (_, i) => mockItem(`item-${(i + 2) % 7}`));
+
+  const results = mergeRrf(kw, vec, 20, 60);
+  for (let i = 0; i < results.length - 1; i++) {
+    if (results[i].score < results[i + 1].score) {
+      throw new Error(`Monotonicity violated at index ${i}: ${results[i].score} < ${results[i + 1].score}`);
+    }
+  }
+});
+
+console.log(`\n=================================================`);
+console.log(`Results: ${passed}/${total} tests passed.`);
+console.log(`=================================================`);
+
+if (passed !== total) {
+  process.exit(1);
+}
