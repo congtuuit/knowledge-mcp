@@ -19,8 +19,8 @@ import {
 } from "./db.js";
 import { chunkMarkdown, chunkPlainText } from "./chunker.js";
 import { generateContext } from "./contextualizer.js";
-import { embedText } from "./embedder.js";
-import { extractGraph, normalizeEntityName } from "./graph-extractor.js";
+import { embedBatch } from "./embedder.js";
+import { extractGraph } from "./graph-extractor.js";
 
 export interface IngestOptions {
   onlyFile?: string;
@@ -137,35 +137,62 @@ export async function runIngest(options?: IngestOptions): Promise<IngestStats> {
       oldChunksByHash.set(oc.content_hash, oc);
     }
 
+    // -------------------------------------------------------
+    // Two-pass batch embedding (Fix: N+1 → 1 batch per file)
+    // -------------------------------------------------------
     const currentChunkHashes = new Set<string>();
+
+    // Pass 1: identify new chunks, run contextualization
+    type PendingChunk = {
+      chunk: (typeof parsedChunks)[number];
+      chunkIndex: number;
+      contentHash: string;
+      contextualizedContent: string;
+    };
+
+    const pendingNew: PendingChunk[] = [];
 
     for (let i = 0; i < parsedChunks.length; i++) {
       const chunk = parsedChunks[i];
       const contentHash = computeSha256(chunk.content);
       currentChunkHashes.add(contentHash);
 
-      const existingChunk = oldChunksByHash.get(contentHash);
-
-      if (existingChunk) {
-        // Chunk content unchanged, reuse existing record
+      if (oldChunksByHash.has(contentHash)) {
         stats.chunksKept++;
-      } else {
-        // New or modified chunk
-        stats.chunksNew++;
+        continue;
+      }
 
-        let contextualizedContent = chunk.content;
-        if (config.contextual.enabled) {
-          const context = await generateContext(fileContent, chunk.content);
-          if (context) {
-            contextualizedContent = `${context}\n\n${chunk.content}`;
-          }
+      stats.chunksNew++;
+
+      // Contextualize (still per-chunk; LLM call is the bottleneck, not a hot path)
+      let contextualizedContent = chunk.content;
+      if (config.contextual.enabled) {
+        const context = await generateContext(fileContent, chunk.content);
+        if (context) contextualizedContent = `${context}\n\n${chunk.content}`;
+      }
+
+      pendingNew.push({ chunk, chunkIndex: i, contentHash, contextualizedContent });
+    }
+
+    // Pass 2: batch embed all new chunks in one HTTP round-trip burst
+    if (pendingNew.length > 0) {
+      const texts = pendingNew.map((p) => p.contextualizedContent);
+      const embeddings = await embedBatch(texts, 10); // batchSize=10
+
+      for (let j = 0; j < pendingNew.length; j++) {
+        const { chunk, chunkIndex, contentHash, contextualizedContent } = pendingNew[j];
+        const embedding = embeddings[j];
+
+        if (!embedding) {
+          console.warn(
+            `[Ingest] No embedding for chunk ${chunkIndex} of '${relPath}' ` +
+            `(embedding gateway unavailable?)`
+          );
         }
-
-        const embedding = await embedText(contextualizedContent);
 
         insertChunk({
           fileId,
-          chunkIndex: i,
+          chunkIndex,
           headingPath: chunk.headingPath,
           content: chunk.content,
           contextualizedContent,

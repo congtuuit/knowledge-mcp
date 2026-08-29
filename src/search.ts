@@ -91,13 +91,12 @@ export async function vectorSearch(query: string, k: number = 8): Promise<Search
   return scored.slice(0, k);
 }
 
-export async function hybridSearch(query: string, k: number = 8): Promise<SearchResult[]> {
-  const K_RRF = 60;
-  const [keywordResults, vectorResults] = await Promise.all([
-    keywordSearch(query, 30),
-    vectorSearch(query, 30),
-  ]);
-
+export function mergeRrf(
+  keywordResults: SearchResult[],
+  vectorResults: SearchResult[],
+  k: number = 8,
+  kRrf: number = 60
+): SearchResult[] {
   const scoreMap = new Map<
     string,
     {
@@ -112,7 +111,7 @@ export async function hybridSearch(query: string, k: number = 8): Promise<Search
   // Keyword ranks
   for (let rank = 0; rank < keywordResults.length; rank++) {
     const item = keywordResults[rank];
-    const rrf = 1 / (K_RRF + rank + 1);
+    const rrf = 1 / (kRrf + rank + 1);
     const existing = scoreMap.get(item.chunkId);
     if (existing) {
       existing.rrfScore += rrf;
@@ -130,7 +129,7 @@ export async function hybridSearch(query: string, k: number = 8): Promise<Search
   // Vector ranks
   for (let rank = 0; rank < vectorResults.length; rank++) {
     const item = vectorResults[rank];
-    const rrf = 1 / (K_RRF + rank + 1);
+    const rrf = 1 / (kRrf + rank + 1);
     const existing = scoreMap.get(item.chunkId);
     if (existing) {
       existing.rrfScore += rrf;
@@ -155,4 +154,13 @@ export async function hybridSearch(query: string, k: number = 8): Promise<Search
     content: item.content,
     score: item.rrfScore,
   }));
+}
+
+export async function hybridSearch(query: string, k: number = 8): Promise<SearchResult[]> {
+  const [keywordResults, vectorResults] = await Promise.all([
+    keywordSearch(query, 30),
+    vectorSearch(query, 30),
+  ]);
+
+  return mergeRrf(keywordResults, vectorResults, k);
 }
