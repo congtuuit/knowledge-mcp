@@ -44,6 +44,7 @@ ${chunkContent}
           { role: "user", content: userMessage },
         ],
         temperature: 0.2,
+        stream: false,
       }),
     });
 
@@ -53,11 +54,24 @@ ${chunkContent}
       return "";
     }
 
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
+    const rawText = await res.text();
+    let data: any;
 
-    const contextText = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (rawText.startsWith("data: ")) {
+      const firstDataLine = rawText
+        .split("\n")
+        .find((line) => line.startsWith("data: ") && line.trim() !== "data: [DONE]");
+      if (firstDataLine) {
+        data = JSON.parse(firstDataLine.replace(/^data:\s*/, ""));
+      }
+    } else {
+      data = JSON.parse(rawText);
+    }
+
+    const contextText =
+      data?.choices?.[0]?.message?.content?.trim() ||
+      data?.choices?.[0]?.delta?.content?.trim() ||
+      "";
     return contextText;
   } catch (error) {
     console.warn("[Contextualizer] Failed to generate context for chunk:", error);

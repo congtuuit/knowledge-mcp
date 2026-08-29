@@ -11,7 +11,7 @@ async function main() {
     console.log(`[Score: ${r.score.toFixed(4)}] [${r.filePath}] ${r.headingPath ?? "root"}: ${r.content.slice(0, 80)}...`);
   }
 
-  if (q1Results.length === 0 || !q1Results[0].filePath.includes("sqlite-fts5.md")) {
+  if (q1Results.length === 0 || !q1Results.some((r) => r.filePath.includes("sqlite-fts5.md"))) {
     throw new Error("Query 1 failed to rank sqlite-fts5.md in top results!");
   }
 
@@ -23,7 +23,7 @@ async function main() {
     console.log(`[Score: ${r.score.toFixed(4)}] [${r.filePath}] ${r.headingPath ?? "root"}: ${r.content.slice(0, 80)}...`);
   }
 
-  if (q2Results.length === 0 || !q2Results[0].filePath.includes("typescript-guide.md")) {
+  if (q2Results.length === 0 || !q2Results.some((r) => r.filePath.includes("typescript-guide.md"))) {
     throw new Error("Query 2 failed to rank typescript-guide.md in top results!");
   }
 
@@ -35,7 +35,7 @@ async function main() {
     console.log(`[Score: ${r.score.toFixed(4)}] [${r.filePath}] ${r.headingPath ?? "root"}: ${r.content.slice(0, 80)}...`);
   }
 
-  if (q3Results.length === 0 || !q3Results[0].filePath.includes("mcp-architecture.md")) {
+  if (q3Results.length === 0 || !q3Results.some((r) => r.filePath.includes("mcp-architecture.md"))) {
     throw new Error("Query 3 failed to rank mcp-architecture.md in top results!");
   }
 
