@@ -77,7 +77,7 @@ export function createMcpServer(): McpServer {
   // Tool 1: hybrid_search
   server.tool(
     "hybrid_search",
-    "Tìm kiếm kết hợp Full-text BM25 + Vector Cosine qua thuật toán Reciprocal Rank Fusion (RRF k=60)",
+    "Tìm kiếm tài liệu nội bộ kết hợp Full-text BM25 + Vector Cosine qua thuật toán Reciprocal Rank Fusion (RRF k=60) để tra cứu chi tiết các chunk kiến thức.",
     {
       query: z.string().describe("Nội dung hoặc câu hỏi cần tìm trong knowledge vault"),
       k: z.number().optional().default(8).describe("Số lượng kết quả cần lấy (mặc định: 8)"),
@@ -285,7 +285,7 @@ export function createMcpServer(): McpServer {
   // Tool 6: context_for_query
   server.tool(
     "context_for_query",
-    "Tìm kiếm và ghép các đoạn context liên quan nhất thành một khối Markdown sẵn sàng nhúng vào prompt (có giới hạn maxTokens)",
+    "TỰ ĐỘNG DÙNG công cụ này để tra cứu tài liệu nội bộ, quy chuẩn coding Sitecore, kiến trúc và best practices dự án khi người dùng hỏi các câu hỏi kỹ thuật/nghiệp vụ. Ghép các đoạn context liên quan nhất thành Markdown sẵn sàng nhúng vào prompt.",
     {
       query: z.string().describe("Câu hỏi hoặc yêu cầu cần lấy ngữ cảnh"),
       maxTokens: z.number().optional().default(2000).describe("Giới hạn token ước tính cho ngữ cảnh (mặc định: 2000)"),

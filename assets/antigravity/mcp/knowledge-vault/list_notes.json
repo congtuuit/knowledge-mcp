@@ -1,0 +1,1 @@
+{"name":"list_notes","description":"Liệt kê danh sách tất cả các file ghi chú hiện có trong vault (hỗ trợ lọc theo prefix)","parameters":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":false,"properties":{"prefix":{"description":"Tiền tố đường dẫn hoặc thư mục để lọc (ví dụ: 'docs/' hoặc 'guides')","type":"string"}},"type":"object"}}
