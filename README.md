@@ -1,55 +1,102 @@
+<div align="center">
+
 # 🧠 Knowledge MCP Server
 
-**Knowledge MCP Server** là hệ thống quản lý và truy xuất kiến thức cá nhân (Local Knowledge Base) hiệu năng cao, expose qua giao thức chuẩn **Model Context Protocol (Streamable HTTP)**. Server cho phép các AI coding assistant và agent (như **Antigravity CLI / IDE**, **Claude Code**, **ChatGPT / Codex**, **Cursor**,...) kết nối trực tiếp để tìm kiếm, đọc, tạo và mở rộng bộ nhớ kiến thức mà không phụ thuộc vào hạ tầng đám mây.
+**The High-Performance, Local-First Second Brain & Knowledge Base for AI Agents**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![MCP Protocol](https://img.shields.io/badge/MCP-Streamable%20HTTP-purple.svg)](https://modelcontextprotocol.io/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/)
+
+[**English**](README.md) • [**Tiếng Việt**](README.vi.md) • [**Roadmap**](ROADMAP.md) • [**Setup Guide**](SETUP_NEW_MACHINE.md)
+
+</div>
 
 ---
 
-## 🌟 Điểm nổi bật (Key Features)
+## 💡 What is Knowledge MCP?
 
-- ⚡ **Native SQLite & FTS5 (Zero External C++ Build)**: Sử dụng module `node:sqlite` (`DatabaseSync`) tích hợp sẵn trong Node.js, khởi động tức thì, hiệu năng truy vấn siêu nhanh và không gặp lỗi build binary trên Windows/macOS/Linux.
-- 🎯 **Hybrid Search với RRF (Reciprocal Rank Fusion k=60)**: Kết hợp sức mạnh của Full-text BM25 search (SQLite FTS5) và Dense Vector Cosine Similarity (Embedding) để mang lại kết quả xếp hạng tối ưu nhất.
-- 🧩 **Thông minh trong phân đoạn (Heading-Aware Chunking)**: Tự động phân tách Markdown theo phân cấp tiêu đề `H1 > H2 > H3`, bảo toàn YAML Frontmatter (`gray-matter`) và hỗ trợ overlap sliding window cho plain text.
-- 🧬 **Anthropic Contextual Retrieval**: Tùy chọn sinh ngữ cảnh tự động cho từng chunk trước khi embed, nâng cao độ chính xác truy xuất ngữ nghĩa vượt trội.
-- 🔄 **Incremental Ingestion (SHA256 Diffing)**: Chỉ nhúng lại những chunk có nội dung thay đổi, tiết kiệm tài nguyên tính toán và thời gian reindex.
-- ✍️ **Tự động đồng bộ khi ghi/nối note (`write_note` & `append_note`)**: Bất cứ khi nào Agent ghi chú hoặc bổ sung kiến thức mới, file sẽ được tự động reindex vào cơ sở dữ liệu ngay lập tức.
-- 🛡️ **Bảo mật & Streamable HTTP**: Hỗ trợ Bearer Token Authentication, chống tấn công Path Traversal, và tuân thủ chuẩn Streamable HTTP MCP transport.
+**Knowledge MCP Server** is a blazing-fast, local-first Knowledge Management & Retrieval-Augmented Generation (RAG) system exposed via the open **Model Context Protocol (MCP)** standard. 
+
+It empowers AI coding assistants and autonomous agents (**Antigravity IDE / CLI**, **Claude Code**, **Cursor**, **ChatGPT / Codex**, **Windsurf**) to seamlessly search, read, create, and maintain your personal or enterprise knowledge vault with **zero cloud dependencies** and **zero data leakage**.
+
+```
+┌─────────────────┐       Streamable HTTP       ┌──────────────────────────────────────┐
+│  AI Assistants  │ ──────────────────────────> │        Knowledge MCP Server          │
+│ (Antigravity /  │                             │ ┌──────────────────────────────────┐ │
+│  Claude / Cursor│ <────────────────────────── │ │ Hybrid Search (BM25 + Vector)    │ │
+└─────────────────┘                             │ │ Anthropic Contextual Retrieval   │ │
+                                                │ │ Heading-Aware Markdown Chunker   │ │
+                                                │ │ Native SQLite FTS5 (Zero C++ bld)│ │
+                                                │ └──────────────────────────────────┘ │
+                                                └──────────────────────────────────────┘
+```
 
 ---
 
-## 🏗️ Kiến trúc hệ thống (System Architecture)
+## ✨ Key Highlights
+
+* ⚡ **Native SQLite & FTS5 (Zero C++ Build Hell)**: Built on Node.js native `node:sqlite` (`DatabaseSync`). Starts in milliseconds without compilation errors on Windows, macOS, or Linux.
+* 🎯 **Hybrid Search with RRF (k=60)**: Combines exact keyword matching (**SQLite FTS5 BM25**) with semantic understanding (**Dense Vector Cosine Similarity**) using Reciprocal Rank Fusion for pinpoint technical accuracy.
+* 🧩 **Heading-Aware Markdown Chunking**: Intelligently parses document structure along `H1 > H2 > H3` hierarchy, preserving YAML Frontmatter metadata (`gray-matter`) without breaking context.
+* 🧬 **Anthropic Contextual Retrieval**: Generates succinct context annotations for each chunk before embedding, drastically reducing ambiguity and retrieval hallucinations.
+* 🔄 **Incremental Ingestion (SHA256 Diffing)**: Reindexes only modified chunks, saving computing power and embedding latency.
+* ⚡ **1-Click All-in-One Setup (`setup-and-run.bat`)**: Automated setup script that prepares environment, builds, indexes, configures Antigravity rules, and starts the server in 30 seconds.
+* 🛡️ **Autonomous Agent Policy**: Built-in rules and tool descriptions that prompt agents to automatically search your knowledge vault before answering technical queries.
+
+---
+
+## 📊 Feature Comparison Matrix
+
+| Feature | 🧠 Knowledge MCP | 📘 Google NotebookLM | 🤖 Mem0 | 📓 Obsidian MCP |
+| :--- | :---: | :---: | :---: | :---: |
+| **Primary Execution** | **Direct IDE Integration** | Web App Tab | Cloud/Python SDK | Obsidian Desktop App |
+| **Privacy & Security** | **100% Local / On-Prem** | Google Cloud | Cloud / SaaS | Local |
+| **Read & Write Memory** | **Yes (Bi-directional)** | Read-Only | Yes | Yes |
+| **Search Architecture** | **BM25 + Vector RRF** | Vector / Context Window | Graph + Vector | Regex / Plaintext |
+| **Technical Symbol Search** | **Pinpoint (FTS5 exact)** | Fuzzy | Semantic only | Basic |
+| **Contextual Retrieval** | **Yes (Anthropic style)** | No | No | No |
+| **Windows Installation** | **Zero C++ Build (Native)** | Cloud | Needs C++ toolchains | Needs Obsidian Plugins |
+| **Protocol Support** | **MCP Streamable HTTP** | Proprietary UI | Custom API / MCP | Local REST / MCP |
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
 graph TD
-    subgraph "Clients"
+    subgraph "AI Clients"
         AG[Antigravity IDE / CLI]
         CC[Claude Code / Desktop]
-        CX[Codex / Other MCP Clients]
+        CX[Codex / Cursor / Others]
     end
 
     subgraph "Knowledge MCP Server (:3900)"
         AUTH[Bearer Auth Middleware]
         HTTP[Streamable HTTP Transport - /mcp]
-        TOOLS[MCP Tools Registry]
+        TOOLS[MCP Tools Registry - 8 Tools]
         
-        subgraph "Engines"
+        subgraph "Core Intelligence Engines"
             HYBRID[Hybrid Search Engine - RRF k=60]
             INGEST[Incremental Ingestion Pipeline]
-            CHUNKER[Heading-Aware Chunker]
-            EMBED[Vector Embedder - Ollama/OpenAI]
+            CHUNKER[Heading-Aware Markdown Chunker]
+            EMBED[Vector Embedder - 9router / Ollama / OpenAI]
             CTX[Anthropic Contextualizer]
         end
 
-        subgraph "Storage"
+        subgraph "Local Storage Layer"
             DB[(SQLite Database - knowledge.db)]
-            FTS[FTS5 BM25 Index]
+            FTS[FTS5 BM25 Full-Text Index]
             VEC[Float32 Vector BLOBs]
             VAULT[Vault Files - data/raw/*.md]
         end
     end
 
-    AG -->|HTTP Stream / POST /mcp| AUTH
-    CC -->|HTTP Stream / POST /mcp| AUTH
-    CX -->|HTTP Stream / POST /mcp| AUTH
+    AG -->|HTTP POST /mcp| AUTH
+    CC -->|HTTP POST /mcp| AUTH
+    CX -->|HTTP POST /mcp| AUTH
 
     AUTH --> HTTP --> TOOLS
     TOOLS --> HYBRID
@@ -65,213 +112,148 @@ graph TD
 
 ---
 
-## 📋 Yêu cầu hệ thống (Prerequisites)
+## 🚀 Quick Start (30 Seconds)
 
-- **Node.js**: Phiên bản `>= 20.0.0` (Khuyến nghị Node 22+)
-- **Embedding Provider**:
-  - **Local (Khuyến nghị)**: [Ollama](https://ollama.com/) với model `nomic-embed-text`
-    ```bash
-    ollama pull nomic-embed-text
-    ```
-  - **Hoặc Cloud**: Bất kỳ endpoint OpenAI-compatible nào (`text-embedding-3-small`, v.v.)
+### Option 1: 1-Click All-in-One Launcher (Windows)
+Double-click [`setup-and-run.bat`](setup-and-run.bat) at the root of the project:
+```powershell
+.\setup-and-run.bat
+```
+> The script automatically verifies Node.js, connects to your embedding gateway (e.g. 9router/Ollama), builds TypeScript, indexes your vault, registers Antigravity MCP configs, and launches the server!
 
 ---
 
-## 🚀 Cài đặt & Khởi chạy (Quick Start)
+### Option 2: Manual Step-by-Step Setup
 
-### 1. Cài đặt Dependencies
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-username/knowledge-mcp.git
+   cd knowledge-mcp
+   ```
 
-```bash
-git clone <repo-url>
-cd knowledge-mcp
-npm install
-```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-### 2. Thiết lập Biến môi trường (.env)
+3. **Configure environment (`.env`):**
+   ```bash
+   cp .env.example .env
+   ```
+   *Sample `.env` configuration:*
+   ```env
+   VAULT_DIR=./data/raw
+   DB_PATH=./db/knowledge.db
+   PORT=3900
 
-Sao chép file mẫu và cấu hình theo nhu cầu của bạn:
+   # Embedding (Ollama or 9router OpenAI-compatible endpoint)
+   EMBEDDING_BASE_URL=http://localhost:11434/v1
+   EMBEDDING_MODEL=nomic-embed-text
+   EMBEDDING_API_KEY=ollama
+   EMBEDDING_DIM=768
 
-```bash
-cp .env.example .env
-```
+   # Anthropic Contextual Retrieval (Optional)
+   CONTEXTUAL_RETRIEVAL_ENABLED=false
+   CHAT_BASE_URL=https://api.openai.com/v1
+   CHAT_MODEL=gpt-4o-mini
+   CHAT_API_KEY=your-key
 
-Nội dung cấu hình trong `.env`:
+   # Authentication (Optional for remote deployments)
+   MCP_AUTH_TOKEN=
+   ```
 
-```env
-# Thư mục chứa tài liệu Markdown / Text
-VAULT_DIR=./data/raw
+4. **Index your knowledge documents:**
+   Drop your Markdown files into `data/raw/` and run:
+   ```bash
+   npm run reindex
+   ```
 
-# Đường dẫn lưu trữ SQLite Database
-DB_PATH=./db/knowledge.db
-
-# Cổng lắng nghe của MCP Server
-PORT=3900
-
-# Cấu hình Embedding (Mặc định: Ollama nomic-embed-text 768 chiều)
-EMBEDDING_BASE_URL=http://localhost:11434/v1
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_API_KEY=ollama
-EMBEDDING_DIM=768
-
-# Anthropic Contextual Retrieval (Tùy chọn, mặc định: false)
-CONTEXTUAL_RETRIEVAL_ENABLED=false
-CHAT_BASE_URL=https://api.openai.com/v1
-CHAT_MODEL=gpt-4o-mini
-CHAT_API_KEY=your-openai-key
-
-# Bảo mật: Bearer Token cho MCP client (Để trống nếu chạy local không cần auth)
-MCP_AUTH_TOKEN=
-```
-
-### 3. Nạp dữ liệu vào Vault & Indexing
-
-Thả các file ghi chú `.md` hoặc `.txt` của bạn vào thư mục `data/raw/` (hoặc thư mục được chỉ định tại `VAULT_DIR`), sau đó chạy lệnh index:
-
-```bash
-npm run reindex
-```
-
-Pipeline sẽ tự động:
-1. Quét toàn bộ tài liệu trong vault.
-2. Kiểm tra SHA256 để bỏ qua các file/chunk chưa từng thay đổi.
-3. Phân đoạn nội dung theo heading `H1 > H2 > H3`.
-4. Tạo vector embedding và lưu trữ vào SQLite kèm chỉ mục FTS5.
-5. Dọn dẹp tự động (Cascade delete) các file đã bị xóa trên ổ đĩa.
-
-### 4. Khởi động Server
-
-**Chế độ phát triển (Development):**
-```bash
-npm run dev
-```
-
-**Chế độ Production:**
-```bash
-npm run build
-npm start
-```
-
-Khi server khởi động thành công, bạn sẽ thấy thông báo:
-```
-============================================================
-🧠 Knowledge MCP Server is running!
-📡 Streamable HTTP Endpoint : http://localhost:3900/mcp
-🏥 Health Check             : http://localhost:3900/health
-🔐 Authentication           : Disabled (Local Dev Mode)
-📂 Vault Directory          : D:\git\knowledge-mcp\data\raw
-🗄️  Database                 : D:\git\knowledge-mcp\db\knowledge.db
-============================================================
-```
+5. **Start the MCP server:**
+   ```bash
+   npm run build
+   npm start
+   ```
+   Server endpoint: `http://localhost:3900/mcp` | Health check: `http://localhost:3900/health`.
 
 ---
 
-## 🛠️ Danh sách MCP Tools
+## 🛠️ MCP Tool Reference
 
-Server cung cấp **8 công cụ MCP chuẩn**:
+Knowledge MCP exposes **8 production-ready tools**:
 
-| Tool Name | Tham số đầu vào | Chức năng |
+| Tool Name | Parameters | Description |
 |---|---|---|
-| `hybrid_search` | `query: string`, `k?: number` (default: 8) | Tìm kiếm kết hợp BM25 + Vector Cosine qua thuật toán **RRF (k=60)** |
-| `keyword_search` | `query: string`, `k?: number` (default: 8) | Tìm kiếm từ khóa chính xác qua **SQLite FTS5 (BM25 ranking)** |
-| `similar_notes` | `query: string`, `k?: number` (default: 8) | Tìm kiếm tương đồng ngữ nghĩa bằng **Vector Cosine Similarity** |
-| `read_note` | `path: string` | Đọc toàn bộ nội dung của một file trong vault (chống path traversal) |
-| `list_notes` | `prefix?: string` | Liệt kê tất cả các file ghi chú hiện có trong vault (lọc theo prefix) |
-| `context_for_query` | `query: string`, `maxTokens?: number` (default: 2000) | Trích xuất và ghép các đoạn context liên quan nhất thành một khối Markdown hoàn chỉnh kèm nguồn |
-| `write_note` | `path: string`, `content: string`, `overwrite?: boolean` | Tạo mới note trong vault và **tự động reindex tức thì** |
-| `append_note` | `path: string`, `content: string` | Ghi thêm nội dung vào cuối note và **tự động reindex tức thì** |
+| `context_for_query` | `query: string`, `maxTokens?: number` | **Recommended primary tool.** Assembles top relevant chunks into an LLM-ready Markdown block with sources. |
+| `hybrid_search` | `query: string`, `k?: number` | Hybrid full-text (BM25) + dense vector search via Reciprocal Rank Fusion (**RRF k=60**). |
+| `keyword_search` | `query: string`, `k?: number` | Exact keyword and phrase search via **SQLite FTS5**. |
+| `similar_notes` | `query: string`, `k?: number` | Semantic cosine similarity vector search. |
+| `read_note` | `path: string` | Read full content of a specific note file (path-traversal protected). |
+| `list_notes` | `prefix?: string` | List all notes in the vault with optional directory prefix filter. |
+| `write_note` | `path: string`, `content: string`, `overwrite?: boolean` | Create a new note file and **instantly auto-reindex** it into SQLite. |
+| `append_note` | `path: string`, `content: string` | Append content to an existing note and **instantly auto-reindex** it. |
 
 ---
 
-## 🔌 Hướng dẫn kết nối MCP Clients
+## 🔌 Connecting to AI Clients
 
-### 1. Antigravity CLI / IDE
-
-Thêm vào file cấu hình global tại `~/.gemini/config/mcp_config.json` hoặc workspace `.agents/mcp_config.json`:
-
+### 1. Antigravity IDE / CLI
+Add to `~/.gemini/config/mcp_config.json`:
 ```json
 {
   "mcpServers": {
     "knowledge-vault": {
-      "type": "streamable-http",
-      "url": "http://localhost:3900/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
-      }
+      "serverUrl": "http://localhost:3900/mcp"
     }
   }
 }
 ```
-*(Nếu không đặt `MCP_AUTH_TOKEN` trong `.env`, bạn có thể bỏ trường `headers`).*
-
----
 
 ### 2. Claude Code & Claude Desktop
-
-Thêm vào file cấu hình `.mcp.json` ở thư mục project hoặc `claude_desktop_config.json`:
-
+Add to `.mcp.json` or `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "knowledge-vault": {
       "type": "streamable-http",
-      "url": "http://localhost:3900/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
-      }
+      "url": "http://localhost:3900/mcp"
     }
   }
 }
 ```
 
----
-
-### 3. Cursor & VS Code MCP Extensions
-
-Trong phần cấu hình MCP Server của IDE:
-- **Server Name**: `knowledge-vault`
-- **Transport Type**: `Streamable HTTP` / `SSE`
-- **URL**: `http://localhost:3900/mcp`
-- **Headers**: `{"Authorization": "Bearer YOUR_TOKEN"}` *(nếu có)*
+### 3. Cursor & VS Code
+Under IDE **Settings > Features > MCP**:
+* **Name**: `knowledge-vault`
+* **Type**: `Streamable HTTP` / `SSE`
+* **URL**: `http://localhost:3900/mcp`
 
 ---
 
-### 4. Codex / ChatGPT CLI
+## 🧪 Testing
 
-Cấu hình thông qua file config MCP của Codex theo định dạng Streamable HTTP endpoint: `http://localhost:3900/mcp`.
-
----
-
-## 🧪 Kiểm thử (Testing)
-
-Dự án đi kèm bộ test toàn diện kiểm tra mọi thành phần:
-
+Run comprehensive unit and integration tests:
 ```bash
-# Test riêng lẻ Database & FTS5
-npx tsx scripts/test-db.ts
-
-# Test Chunker Engine
-npx tsx scripts/test-chunker.ts
-
-# Test Search & RRF ranking
-npx tsx scripts/test-search.ts
-
-# Test toàn bộ MCP Server và 8 Tools
-npx tsx scripts/test-mcp-server.ts
+# Run all test suites (DB, Chunker, Search, MCP Server)
+npm run test:all
 ```
 
 ---
 
-## ❓ Khắc phục sự cố (Troubleshooting)
+## 🗺️ Roadmap
 
-| Vấn đề | Nguyên nhân | Cách khắc phục |
-|---|---|---|
-| `ECONNREFUSED 127.0.0.1:11434` | Ollama chưa được bật | Khởi động Ollama (`ollama serve`) và đảm bảo đã kéo model `ollama pull nomic-embed-text`. Server sẽ tự động fallback sang tìm kiếm từ khóa FTS5 mà không bị crash. |
-| `listen EADDRINUSE :::3900` | Port 3900 đang bị chiếm | Đổi cổng khác trong file `.env` (ví dụ: `PORT=3901`). |
-| `401 Unauthorized` | Sai hoặc thiếu Bearer token | Kiểm tra giá trị `MCP_AUTH_TOKEN` trong `.env` và khớp với header `Authorization: Bearer <TOKEN>` trên MCP client. |
-| Kết quả tìm kiếm chưa cập nhật | Chưa reindex | Chạy lệnh `npm run reindex` hoặc sử dụng tool `write_note`/`append_note` để hệ thống tự động index. |
+Check out our [ROADMAP.md](ROADMAP.md) for upcoming milestones:
+* ⚡ **Phase 1**: Real-Time Live File Watcher (`chokidar`).
+* ✂️ **Phase 2**: Surgical Note Editing (`update_section`, `patch_frontmatter`).
+* 📄 **Phase 3**: Multi-Format Parsing (PDF, Word, Excel).
+* 🎯 **Phase 4**: Cross-Encoder Re-Ranking Pipeline.
+* 🖥️ **Phase 5**: Local Web Dashboard & RAG Playground.
 
 ---
 
-## 📜 Giấy phép (License)
+## 📜 License & Contribution
 
-Phát hành dưới giấy phép MIT. Thoải mái tùy biến và tích hợp vào hệ thống AI workflow của bạn!
+Distributed under the **MIT License**. Contributions, issues, and feature requests are welcome!
+
+<div align="center">
+  <sub>Built with ❤️ for the AI Agent Community. Star ⭐ this repo if you find it helpful!</sub>
+</div>
