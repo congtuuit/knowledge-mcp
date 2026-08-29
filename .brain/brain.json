@@ -1,27 +1,28 @@
 {
   "meta": {
-    "schema_version": "1.1.0",
+    "schema_version": "1.2.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-08-28T17:04:00+07:00"
+    "last_updated": "2026-08-29T22:15:00+07:00"
   },
   "project": {
     "name": "knowledge-mcp",
-    "type": "MCP Server / Knowledge Retrieval & Ingestion Layer",
-    "status": "Completed (All 7 Phases Implemented & Tested)",
-    "description": "Kho kiến thức cá nhân (local) expose qua MCP streamable-HTTP cho Claude Code, ChatGPT/Codex, Antigravity CLI và bất kỳ MCP client nào."
+    "type": "Enterprise Graph-RAG MCP Server / Knowledge Retrieval & Ingestion Layer",
+    "status": "Completed v2.0 (Core Hybrid RAG + SQLite-Native Knowledge Graph)",
+    "description": "Kho tri thức doanh nghiệp & cá nhân local-first expose qua MCP Streamable-HTTP cho Antigravity IDE, Claude Code, Cursor, Codex. Tích hợp Hybrid Search (BM25 + Cosine Vector + RRF) và Knowledge Graph K-hop Recursive CTE."
   },
   "tech_stack": {
     "runtime": "Node.js (>=20, ESM)",
     "language": "TypeScript 5.7",
-    "database": "SQLite (node:sqlite DatabaseSync) with FTS5",
+    "database": "SQLite (node:sqlite DatabaseSync) with FTS5 + WITH RECURSIVE CTE Graph Engine",
     "mcp_sdk": "@modelcontextprotocol/sdk ^1.12.1",
     "server": "Express ^4.21.2 (Streamable HTTP transport)",
-    "vector_search": "Brute-force Cosine Similarity + Reciprocal Rank Fusion (RRF)",
-    "embedding_provider": "OpenAI-compatible endpoint (Ollama nomic-embed-text 768-dim / external)",
+    "vector_search": "Brute-force Cosine Similarity + Reciprocal Rank Fusion (RRF k=60)",
+    "graph_engine": "SQLite Recursive CTE (k-hop decay scoring, cycle detection, zero external graph DB)",
+    "embedding_provider": "OpenAI-compatible endpoint (Ollama / Gemini / 9router)",
     "contextual_retrieval": "Anthropic Contextual Retrieval prompt via OpenAI-compatible chat endpoint"
   },
   "database_schema": {
-    "summary": "SQLite database local (knowledge.db) lưu trữ metadata file và các chunks kèm embedding float32 và chỉ mục full-text search FTS5",
+    "summary": "SQLite local (knowledge.db) lưu trữ file metadata, chunks (Float32 BLOB embedding + FTS5), và 3 bảng đồ thị tri thức (entities, edges, entity_chunk_map)",
     "tables": [
       {
         "name": "files",
@@ -57,20 +58,55 @@
           "content",
           "contextualized_content"
         ]
+      },
+      {
+        "name": "entities",
+        "description": "Node trong đồ thị tri thức (tài liệu, service, API, schema, team, concept)",
+        "columns": [
+          "id (TEXT PK)",
+          "name (TEXT UNIQUE)",
+          "type (TEXT)",
+          "file_id (TEXT FK->files.id ON DELETE SET NULL)",
+          "source (TEXT)",
+          "metadata (TEXT JSON)",
+          "created_at (INTEGER)"
+        ]
+      },
+      {
+        "name": "edges",
+        "description": "Quan hệ có hướng và có trọng số giữa các entities (DEPENDS_ON, IMPLEMENTS, SUPERSEDES, CONFLICTS_WITH, OWNED_BY, REFERENCES)",
+        "columns": [
+          "id (TEXT PK)",
+          "source_id (TEXT FK->entities.id ON DELETE CASCADE)",
+          "target_id (TEXT FK->entities.id ON DELETE CASCADE)",
+          "edge_type (TEXT)",
+          "weight (REAL)",
+          "confidence (REAL)",
+          "source_type (TEXT)",
+          "created_at (INTEGER)"
+        ]
+      },
+      {
+        "name": "entity_chunk_map",
+        "description": "Liên kết N-N giữa chunks và entities để mở rộng tìm kiếm 1-hop",
+        "columns": [
+          "entity_id (TEXT FK->entities.id ON DELETE CASCADE)",
+          "chunk_id (TEXT FK->chunks.id ON DELETE CASCADE)"
+        ]
       }
     ],
-    "relationships_explained": "1 file có nhiều chunks. Khi xóa file, tất cả chunks tự động xóa theo (CASCADE). Khi insert/update/delete chunk, triggers tự động cập nhật FTS5."
+    "relationships_explained": "1 file chứa nhiều chunks và sinh ra 1 entity đại diện. Entities liên kết với nhau qua bảng edges. Chunks mapping với entities qua entity_chunk_map. Khi xóa file, tất cả chunks và entities con tự động dọn sạch (CASCADE)."
   },
   "api_endpoints": [
     {
       "path": "POST /mcp",
       "transport": "Streamable HTTP",
       "auth": "Bearer Token (Authorization: Bearer <MCP_AUTH_TOKEN>)",
-      "explained": "MCP endpoint phục vụ trao đổi JSON-RPC theo chuẩn Model Context Protocol streamable-HTTP",
+      "explained": "MCP endpoint phục vụ trao đổi JSON-RPC theo chuẩn Model Context Protocol streamable-HTTP với 13 công cụ",
       "tools": [
         {
           "name": "hybrid_search",
-          "description": "Tìm kiếm kết hợp Full-text BM25 + Vector Cosine qua RRF"
+          "description": "Tìm kiếm kết hợp Full-text BM25 + Vector Cosine qua RRF k=60"
         },
         {
           "name": "keyword_search",
@@ -86,7 +122,7 @@
         },
         {
           "name": "list_notes",
-          "description": "Liệt kê danh sách notes trong vault (hỗ trợ prefix)"
+          "description": "Liệt kê danh sách notes trong vault (hỗ trợ prefix đã sanitize)"
         },
         {
           "name": "context_for_query",
@@ -94,32 +130,53 @@
         },
         {
           "name": "write_note",
-          "description": "Tạo note mới vào vault và tự động reindex ngay lập tức"
+          "description": "Tạo note mới vào vault (có file lock) và tự động reindex tức thì"
         },
         {
           "name": "append_note",
-          "description": "Ghi thêm nội dung vào note và tự động reindex"
+          "description": "Ghi thêm nội dung vào note (có file lock chống race condition) và tự động reindex"
+        },
+        {
+          "name": "impact_analysis",
+          "description": "Phân tích bán kính ảnh hưởng K-hop (blast radius) qua SQLite Recursive CTE"
+        },
+        {
+          "name": "graph_hybrid_search",
+          "description": "Tìm kiếm hybrid kết hợp mở rộng 1-hop các entity liền kề"
+        },
+        {
+          "name": "detect_conflicts",
+          "description": "Phát hiện quan hệ mâu thuẫn CONFLICTS_WITH giữa các tài liệu / quy định"
+        },
+        {
+          "name": "get_entity_lineage",
+          "description": "Truy vết chuỗi phụ thuộc đầy đủ theo chiều sâu (Requirement -> API -> Service -> Schema)"
+        },
+        {
+          "name": "find_owner",
+          "description": "Tìm team / người chịu trách nhiệm qua OWNED_BY edges"
         }
       ]
     }
   ],
   "business_rules": [
-    "Retriever & Storage Layer Only: Server không sinh câu trả lời cuối cùng, chỉ cung cấp công cụ tìm kiếm và lưu trữ cho AI agent.",
-    "Incremental Ingest / Diffing: Chỉ embed lại những chunk có sha256(content) thay đổi so với DB; chunk cũ giữ nguyên.",
-    "Auto Reindex on Mutation: write_note và append_note luôn tự động trigger runIngest({ onlyFile: path }) để cập nhật index tức thì.",
-    "Path Traversal Prevention: Các thao tác đọc/ghi file luôn chuẩn hóa đường dẫn và chặn truy cập ngoài VAULT_DIR.",
-    "Graceful Fallback: Lỗi embedding của một chunk không làm crash toàn bộ batch, chunk vẫn được lưu với embedding NULL và search được qua FTS5."
+    "Retriever & Knowledge Engine Layer: Expose cả RAG search và Graph traversal cho AI agents.",
+    "Incremental Ingest / 2-Pass Batching: Diff SHA256, chỉ re-embed chunk mới theo batch (10 chunks/request) giảm tải HTTP.",
+    "In-Process File Locking: write_note và append_note luôn chạy qua withFileLock để chống lost-update khi ghi đồng thời.",
+    "Zero-Token Graph Extraction: Auto-extract edges từ YAML frontmatter và [[wikilinks]] mà không tiêu tốn token LLM.",
+    "Path Traversal Prevention: Các thao tác file luôn chuẩn hóa đường dẫn và chặn truy cập ngoài VAULT_DIR.",
+    "Graceful Degradation: Embedding lỗi không crash server; chunk vẫn lưu và tra cứu được qua FTS5."
   ],
   "features": [
     {
       "phase": 1,
-      "name": "Database Layer",
+      "name": "Database Layer (Files, Chunks, Entities, Edges)",
       "status": "completed",
       "file": "src/db.ts"
     },
     {
       "phase": 2,
-      "name": "Chunking Engine",
+      "name": "Chunking Engine & Frontmatter Parser",
       "status": "completed",
       "file": "src/chunker.ts"
     },
@@ -134,7 +191,7 @@
     },
     {
       "phase": 4,
-      "name": "Incremental Ingest Pipeline",
+      "name": "Incremental Ingest Pipeline & Batching",
       "status": "completed",
       "files": [
         "src/ingest.ts",
@@ -143,34 +200,44 @@
     },
     {
       "phase": 5,
-      "name": "Hybrid Search (BM25 + Vector + RRF)",
+      "name": "Hybrid Search Engine (BM25 + Vector + RRF)",
       "status": "completed",
       "file": "src/search.ts"
     },
     {
       "phase": 6,
-      "name": "MCP Server Implementation",
+      "name": "SQLite Knowledge Graph Engine (K-Hop CTE)",
       "status": "completed",
-      "file": "src/mcp-server.ts"
+      "files": [
+        "src/graph.ts",
+        "src/graph-extractor.ts"
+      ]
     },
     {
       "phase": 7,
-      "name": "Documentation & Client Integration",
+      "name": "MCP Modular Server & 13 Tools",
       "status": "completed",
-      "file": "README.md"
+      "files": [
+        "src/mcp-server.ts",
+        "src/tools/search-tools.ts",
+        "src/tools/file-tools.ts",
+        "src/tools/graph-tools.ts"
+      ]
     }
   ],
   "knowledge_items": {
     "patterns": [
       "Node.js DatabaseSync (node:sqlite) for native fast synchronous SQLite access without external C++ compilation issues",
+      "SQLite Recursive CTE (WITH RECURSIVE) for in-database graph traversal with decay scoring and JSON path cycle detection",
+      "In-process Promise queue file locking (withFileLock) for race-condition prevention during concurrent note mutations",
+      "2-pass batch embedding to minimize HTTP round-trip latency during document reindexing",
       "Float32Array buffer conversion to Uint8Array for compact BLOB storage in SQLite",
-      "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores without score normalization issues",
-      "Base64 image stripping in Markdown chunker to keep knowledge base compact and free of binary string noise",
-      "PM2 daemon deployment on local machine for persistent zero-downtime MCP background serving on Windows"
+      "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores",
+      "Base64 image stripping in Markdown chunker to keep knowledge base compact"
     ],
     "gotchas": [
-      "FTS5 MATCH requires query escaping (stripping special chars, wrapping terms in quotes or OR) to avoid syntax errors",
-      "Streamable HTTP MCP requires handling SSE/HTTP transport correctly with @modelcontextprotocol/sdk and session tracking via Mcp-Session-Id header"
+      "FTS5 MATCH requires query escaping (stripping special chars, wrapping terms in quotes) to avoid syntax errors",
+      "SQLite does not natively support array parameter binding in IN clauses, requiring programmatic placeholder generation"
     ]
   }
 }
