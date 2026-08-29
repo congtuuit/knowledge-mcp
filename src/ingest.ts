@@ -11,11 +11,16 @@ import {
   getChunksByFile,
   insertChunk,
   deleteChunk,
+  upsertEntity,
+  upsertEdge,
+  deleteEntitiesByFile,
+  linkEntityToChunk,
   type ChunkRow,
 } from "./db.js";
 import { chunkMarkdown, chunkPlainText } from "./chunker.js";
 import { generateContext } from "./contextualizer.js";
 import { embedText } from "./embedder.js";
+import { extractGraph, normalizeEntityName } from "./graph-extractor.js";
 
 export interface IngestOptions {
   onlyFile?: string;
@@ -176,6 +181,59 @@ export async function runIngest(options?: IngestOptions): Promise<IngestStats> {
       if (!currentChunkHashes.has(oldChunk.content_hash)) {
         deleteChunk(oldChunk.id);
         stats.chunksDeleted++;
+      }
+    }
+
+    // ------------------------------------------
+    // Graph Extraction (rule-based, zero-token)
+    // ------------------------------------------
+    if (ext === ".md") {
+      try {
+        const parsed = chunkMarkdown(fileContent);
+        const graphData = extractGraph(relPath, parsed.frontmatter, fileContent);
+
+        // Delete old entities for this file before re-inserting
+        deleteEntitiesByFile(fileId);
+
+        // Upsert the entity representing this file
+        const entityId = upsertEntity({
+          name: graphData.entity.name,
+          type: graphData.entity.type,
+          fileId,
+          source: graphData.entity.source,
+          metadata: Object.keys(graphData.entity.metadata).length > 0
+            ? graphData.entity.metadata
+            : null,
+        });
+
+        // Link entity -> all chunks of this file
+        const fileChunks = getChunksByFile(fileId);
+        for (const chunk of fileChunks) {
+          linkEntityToChunk(entityId, chunk.id);
+        }
+
+        // Upsert edges: ensure target entities exist (as stubs), then create edge
+        for (const edge of graphData.edges) {
+          // Stub entity for the target (will be enriched when target file is ingested)
+          const targetEntityId = upsertEntity({
+            name: edge.targetName,
+            type: "document",
+            fileId: null,
+            source: "auto_link",
+            metadata: null,
+          });
+
+          upsertEdge({
+            sourceId: entityId,
+            targetId: targetEntityId,
+            edgeType: edge.edgeType,
+            weight: edge.weight,
+            confidence: edge.confidence,
+            sourceType: edge.sourceType,
+          });
+        }
+      } catch (err) {
+        console.warn(`[Ingest] Graph extraction failed for ${relPath}:`, err);
       }
     }
   }

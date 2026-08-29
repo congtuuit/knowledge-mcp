@@ -7,9 +7,10 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config } from "./config.js";
-import { getDb } from "./db.js";
+import { getDb, getEntityByName, searchEntitiesByName, getEntityCount, getEdgeCount } from "./db.js";
 import { hybridSearch, keywordSearch, vectorSearch } from "./search.js";
 import { runIngest } from "./ingest.js";
+import { kHopNeighbors, detectConflicts, findOwner, getEntityLineage, graphHybridSearch } from "./graph.js";
 
 // ==========================================
 // Security & Path Utilities
@@ -71,7 +72,7 @@ export function listVaultFiles(dir: string, prefix?: string): VaultFileInfo[] {
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "knowledge-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   // Tool 1: hybrid_search
@@ -473,6 +474,231 @@ export function createMcpServer(): McpServer {
               text: `Error appending note: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Tool 9: impact_analysis
+  // ==========================================
+  server.tool(
+    "impact_analysis",
+    "Phân tích bán kính ảnh hưởng (blast radius) khi thay đổi một entity. Duyệt đồ thị K-hop bằng SQLite Recursive CTE để tìm tất cả các services, APIs, tài liệu liên quan bị tác động.",
+    {
+      entity_name: z.string().describe("Tên entity cần phân tích (service, API, doc, schema...)"),
+      k: z.number().int().min(1).max(4).optional().default(2).describe("Số bước lan truyền tối đa (1-4, mặc định 2)"),
+      edge_types: z
+        .array(z.enum(["DEPENDS_ON", "REFERENCES", "IMPLEMENTS", "SUPERSEDES", "OWNED_BY", "CONFLICTS_WITH"]))
+        .optional()
+        .default(["DEPENDS_ON", "REFERENCES", "IMPLEMENTS"])
+        .describe("Loại quan hệ cần duyệt"),
+    },
+    async ({ entity_name, k, edge_types }) => {
+      try {
+        const entity = getEntityByName(entity_name);
+        if (!entity) {
+          // Fuzzy fallback
+          const candidates = searchEntitiesByName(entity_name, 5);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                found: false,
+                message: `Entity '${entity_name}' not found in graph.`,
+                suggestions: candidates.map((c) => ({ name: c.name, type: c.type })),
+              }, null, 2),
+            }],
+          };
+        }
+
+        const affected = kHopNeighbors({
+          startEntityId: entity.id,
+          edgeTypes: edge_types as any,
+          maxK: k,
+        });
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              source: { id: entity.id, name: entity.name, type: entity.type },
+              maxK: k,
+              edgeTypes: edge_types,
+              affectedCount: affected.length,
+              affected: affected.map((e) => ({
+                name: e.name,
+                type: e.type,
+                filePath: e.file_path,
+                influenceScore: Number(e.influence_score.toFixed(4)),
+                depth: e.min_depth,
+              })),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `impact_analysis error: ${error instanceof Error ? error.message : String(error)}` }],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Tool 10: graph_hybrid_search
+  // ==========================================
+  server.tool(
+    "graph_hybrid_search",
+    "Tìm kiếm hybrid (BM25 + Vector + RRF) kết hợp mở rộng 1-hop graph để trả về cả text chunks lẫn các entities liên quan đến kết quả tìm kiếm.",
+    {
+      query: z.string().describe("Nội dung cần tìm kiếm"),
+      k: z.number().optional().default(8).describe("Số lượng chunks kết quả (mặc định 8)"),
+    },
+    async ({ query, k }) => {
+      try {
+        const results = await graphHybridSearch(query, k);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(results.map((r) => ({
+              chunkId: r.chunkId,
+              filePath: r.filePath,
+              headingPath: r.headingPath,
+              content: r.content,
+              score: r.score,
+              relatedEntities: r.relatedEntities,
+            })), null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `graph_hybrid_search error: ${error instanceof Error ? error.message : String(error)}` }],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Tool 11: detect_conflicts
+  // ==========================================
+  server.tool(
+    "detect_conflicts",
+    "Phát hiện các mâu thuẫn (CONFLICTS_WITH edges) giữa entity đầu vào và các tài liệu/chính sách khác trong knowledge graph.",
+    {
+      entity_name: z.string().describe("Tên entity cần kiểm tra mâu thuẫn"),
+    },
+    async ({ entity_name }) => {
+      try {
+        const entity = getEntityByName(entity_name);
+        if (!entity) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ found: false, message: `Entity '${entity_name}' not found.` }) }],
+          };
+        }
+
+        const conflicts = detectConflicts(entity.id);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              entity: { name: entity.name, type: entity.type },
+              conflictCount: conflicts.length,
+              conflicts: conflicts.map((c) => ({
+                withEntity: c.entityB.name,
+                withType: c.entityB.type,
+                withFile: c.entityB.filePath,
+                confidence: c.confidence,
+              })),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `detect_conflicts error: ${error instanceof Error ? error.message : String(error)}` }],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Tool 12: get_entity_lineage
+  // ==========================================
+  server.tool(
+    "get_entity_lineage",
+    "Truy vết chuỗi phụ thuộc đầy đủ của một entity: từ Business Requirement -> API Spec -> Service -> Database Schema. Giúp hiểu nguồn gốc và tác động theo chiều sâu.",
+    {
+      entity_name: z.string().describe("Tên entity cần truy vết lineage"),
+      max_depth: z.number().int().min(1).max(6).optional().default(4).describe("Độ sâu tối đa của cây phụ thuộc (mặc định 4)"),
+    },
+    async ({ entity_name, max_depth }) => {
+      try {
+        const entity = getEntityByName(entity_name);
+        if (!entity) {
+          const candidates = searchEntitiesByName(entity_name, 5);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                found: false,
+                message: `Entity '${entity_name}' not found.`,
+                suggestions: candidates.map((c) => ({ name: c.name, type: c.type })),
+              }, null, 2),
+            }],
+          };
+        }
+
+        const lineage = getEntityLineage(entity.id, max_depth);
+        return {
+          content: [{ type: "text", text: JSON.stringify(lineage, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `get_entity_lineage error: ${error instanceof Error ? error.message : String(error)}` }],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Tool 13: find_owner
+  // ==========================================
+  server.tool(
+    "find_owner",
+    "Xác định team hoặc người chịu trách nhiệm (owner) của một entity trong knowledge graph thông qua OWNED_BY edges.",
+    {
+      entity_name: z.string().describe("Tên service, API, tài liệu cần tìm owner"),
+    },
+    async ({ entity_name }) => {
+      try {
+        const entity = getEntityByName(entity_name);
+        if (!entity) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ found: false, message: `Entity '${entity_name}' not found.` }) }],
+          };
+        }
+
+        const owner = findOwner(entity.id);
+        const graphStats = { entityCount: getEntityCount(), edgeCount: getEdgeCount() };
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              entity: { name: entity.name, type: entity.type, filePath: entity.file_id },
+              owner: owner ?? null,
+              hasOwner: owner !== null,
+              graphStats,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `find_owner error: ${error instanceof Error ? error.message : String(error)}` }],
         };
       }
     }
