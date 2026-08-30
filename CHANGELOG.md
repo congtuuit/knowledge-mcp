@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-08-30
+
+### Added
+- **Enterprise Second Brain Benchmark Suite (`benchmarks/`)**:
+  - Module tạo vault quy mô tự động (`synthetic-vault-generator.ts`) hỗ trợ scale `micro` (12 files), `standard` (510 files), `enterprise` (2,500+ files).
+  - Trình nạp dataset chuẩn HotpotQA/Multi-hop (`hf-dataset-loader.ts`).
+  - Hệ thống đo đạc chuẩn quốc tế BEIR/RAGAS (`metrics.ts`, `system-profiler.ts`, `benchmark-engine.ts`): HitRate@1, Recall@3/5/10, MRR, NDCG@5, Lineage Exact Match, Blast Radius F1, Conflict Recall, Ownership Accuracy.
+  - Báo cáo trực quan `BENCHMARK_REPORT.md` tích hợp Mermaid Quadrant Chart và XY Bar Charts (gam màu xanh `#2563eb`).
+
+### Fixed
+- **Graph-Hybrid Evaluation Scoring (Bug #1)**: Sửa lỗi `benchmark-engine.ts` bỏ qua `relatedEntities` từ 1-hop expansion, gộp đầy đủ entity name vào `retrievedIds` giúp phản ánh chính xác hiệu quả Graph-RAG.
+- **Blast Radius Incoming Traversal (Bug #2)**: Bổ sung nhánh truy vấn SQL đệ quy riêng cho `direction === "incoming"` trong `src/graph.ts` và cập nhật benchmark runner; tăng Blast Radius F1 từ ~18% lên 65.5%.
+- **HitRate@1 Binary Metric Calculation (Bug #3)**: Tách riêng hàm `calculateHitRateAtK()` (binary 0/1) khỏi `calculateRecallAtK()` trong `metrics.ts`, loại bỏ bias với các câu hỏi có nhiều ground truth entities (HitRate@1 tăng lên 54.5%).
+
+### Changed & Optimized
+- **SQLite Performance Tuning (`src/db.ts`)**: Bổ sung các PRAGMA chuyên sâu: `synchronous = NORMAL`, `cache_size = -64MB`, `temp_store = MEMORY`, `mmap_size = 256MB`, `wal_autocheckpoint = 1000`.
+- **Atomic Ingest SAVEPOINT (`src/ingest.ts`)**: Bọc toàn bộ chunk insert và graph extraction của từng file trong khối SAVEPOINT transaction tương thích với `node:sqlite`, giảm tải I/O ghi đĩa.
+- **Tài liệu chiến lược tối ưu**: Tạo `optimization_strategy.md` và `benchmark_accuracy_audit.md` hoạch định lộ trình In-Process HNSW Vector Indexing và v3.0 Enterprise.
+
 ## [0.2.0] - 2026-08-29
 
 ### Added

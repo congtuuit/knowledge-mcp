@@ -1,25 +1,26 @@
 {
   "meta": {
-    "schema_version": "1.2.0",
+    "schema_version": "1.3.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-08-29T22:15:00+07:00"
+    "last_updated": "2026-08-30T10:15:00+07:00"
   },
   "project": {
     "name": "knowledge-mcp",
     "type": "Enterprise Graph-RAG MCP Server / Knowledge Retrieval & Ingestion Layer",
-    "status": "Completed v2.0 (Core Hybrid RAG + SQLite-Native Knowledge Graph)",
-    "description": "Kho tri thức doanh nghiệp & cá nhân local-first expose qua MCP Streamable-HTTP cho Antigravity IDE, Claude Code, Cursor, Codex. Tích hợp Hybrid Search (BM25 + Cosine Vector + RRF) và Knowledge Graph K-hop Recursive CTE."
+    "status": "Completed v2.0 + Benchmark Suite & Engine Optimization (Ready for v3.0)",
+    "description": "Kho tri thức doanh nghiệp & cá nhân local-first expose qua MCP Streamable-HTTP cho Antigravity IDE, Claude Code, Cursor, Codex. Tích hợp Hybrid Search (BM25 + Cosine Vector + RRF), Knowledge Graph K-hop Recursive CTE, và Benchmark Suite so sánh đối thủ thị trường."
   },
   "tech_stack": {
     "runtime": "Node.js (>=20, ESM)",
     "language": "TypeScript 5.7",
-    "database": "SQLite (node:sqlite DatabaseSync) with FTS5 + WITH RECURSIVE CTE Graph Engine",
+    "database": "SQLite (node:sqlite DatabaseSync) with FTS5 + WITH RECURSIVE CTE Graph Engine (PRAGMA tuned)",
     "mcp_sdk": "@modelcontextprotocol/sdk ^1.12.1",
     "server": "Express ^4.21.2 (Streamable HTTP transport)",
     "vector_search": "Brute-force Cosine Similarity + Reciprocal Rank Fusion (RRF k=60)",
-    "graph_engine": "SQLite Recursive CTE (k-hop decay scoring, cycle detection, zero external graph DB)",
+    "graph_engine": "SQLite Recursive CTE (k-hop decay scoring, bidirectional/incoming/outgoing traversal, cycle detection)",
     "embedding_provider": "OpenAI-compatible endpoint (Ollama / Gemini / 9router)",
-    "contextual_retrieval": "Anthropic Contextual Retrieval prompt via OpenAI-compatible chat endpoint"
+    "contextual_retrieval": "Anthropic Contextual Retrieval prompt via OpenAI-compatible chat endpoint",
+    "benchmark_framework": "Custom BEIR/RAGAS compliant Benchmark Suite + Synthetic Vault Generator + Mermaid visual reporting"
   },
   "database_schema": {
     "summary": "SQLite local (knowledge.db) lưu trữ file metadata, chunks (Float32 BLOB embedding + FTS5), và 3 bảng đồ thị tri thức (entities, edges, entity_chunk_map)",
@@ -162,15 +163,17 @@
   "business_rules": [
     "Retriever & Knowledge Engine Layer: Expose cả RAG search và Graph traversal cho AI agents.",
     "Incremental Ingest / 2-Pass Batching: Diff SHA256, chỉ re-embed chunk mới theo batch (10 chunks/request) giảm tải HTTP.",
+    "Atomic Ingest SAVEPOINT: Từng file được bọc trong SAVEPOINT để đảm bảo chunk và entity đồng bộ tức thì, tối ưu SQLite WAL write.",
     "In-Process File Locking: write_note và append_note luôn chạy qua withFileLock để chống lost-update khi ghi đồng thời.",
     "Zero-Token Graph Extraction: Auto-extract edges từ YAML frontmatter và [[wikilinks]] mà không tiêu tốn token LLM.",
+    "Directional Graph Traversal: Hỗ trợ outgoing, incoming (blast radius thượng nguồn), và both trong kHopNeighbors.",
     "Path Traversal Prevention: Các thao tác file luôn chuẩn hóa đường dẫn và chặn truy cập ngoài VAULT_DIR.",
     "Graceful Degradation: Embedding lỗi không crash server; chunk vẫn lưu và tra cứu được qua FTS5."
   ],
   "features": [
     {
       "phase": 1,
-      "name": "Database Layer (Files, Chunks, Entities, Edges)",
+      "name": "Database Layer (Files, Chunks, Entities, Edges, PRAGMA Tuning)",
       "status": "completed",
       "file": "src/db.ts"
     },
@@ -191,7 +194,7 @@
     },
     {
       "phase": 4,
-      "name": "Incremental Ingest Pipeline & Batching",
+      "name": "Incremental Ingest Pipeline, Batching & SAVEPOINT",
       "status": "completed",
       "files": [
         "src/ingest.ts",
@@ -206,7 +209,7 @@
     },
     {
       "phase": 6,
-      "name": "SQLite Knowledge Graph Engine (K-Hop CTE)",
+      "name": "SQLite Knowledge Graph Engine (K-Hop CTE + Directional Traversal)",
       "status": "completed",
       "files": [
         "src/graph.ts",
@@ -223,22 +226,37 @@
         "src/tools/file-tools.ts",
         "src/tools/graph-tools.ts"
       ]
+    },
+    {
+      "phase": 8,
+      "name": "Enterprise Benchmark Suite & Standard Dataset Adapter",
+      "status": "completed",
+      "files": [
+        "benchmarks/run-benchmark.ts",
+        "benchmarks/generators/synthetic-vault-generator.ts",
+        "benchmarks/generators/hf-dataset-loader.ts",
+        "benchmarks/runners/benchmark-engine.ts",
+        "benchmarks/evaluators/metrics.ts",
+        "benchmarks/evaluators/system-profiler.ts",
+        "benchmarks/evaluators/report-generator.ts"
+      ]
     }
   ],
   "knowledge_items": {
     "patterns": [
       "Node.js DatabaseSync (node:sqlite) for native fast synchronous SQLite access without external C++ compilation issues",
-      "SQLite Recursive CTE (WITH RECURSIVE) for in-database graph traversal with decay scoring and JSON path cycle detection",
+      "SQLite Recursive CTE (WITH RECURSIVE) with incoming/outgoing directional branching for upstream blast radius vs downstream lineage",
       "In-process Promise queue file locking (withFileLock) for race-condition prevention during concurrent note mutations",
-      "2-pass batch embedding to minimize HTTP round-trip latency during document reindexing",
+      "2-pass batch embedding + SAVEPOINT release wrapper per file to minimize HTTP round-trip latency and SQLite WAL commits",
       "Float32Array buffer conversion to Uint8Array for compact BLOB storage in SQLite",
       "RRF (Reciprocal Rank Fusion) with k=60 to fuse sparse BM25 and dense cosine scores",
-      "Base64 image stripping in Markdown chunker to keep knowledge base compact"
+      "BEIR standard evaluation metrics: separating binary calculateHitRateAtK() from proportion calculateRecallAtK()"
     ],
     "gotchas": [
       "FTS5 MATCH requires query escaping (stripping special chars, wrapping terms in quotes) to avoid syntax errors",
-      "SQLite does not natively support array parameter binding in IN clauses, requiring programmatic placeholder generation"
+      "node:sqlite DatabaseSync does not implement .transaction() method like better-sqlite3; use manual SAVEPOINT/RELEASE/ROLLBACK TO",
+      "Blast radius upstream analysis requires incoming edge traversal (target_id -> source_id) rather than default bidirectional",
+      "Mermaid xychart-beta inside Markdown requires clean non-diacritic strings and themeVariables plotColorPalette configuration"
     ]
   }
 }
-

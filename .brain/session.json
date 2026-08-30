@@ -1,99 +1,115 @@
 {
-  "updated_at": "2026-08-29T23:11:00+07:00",
+  "updated_at": "2026-08-30T10:15:00+07:00",
   "working_on": {
     "feature": "Knowledge MCP v3.0 Enterprise SOP & Knowledge Copilot",
-    "task": "Strategic Planning & Implementation Roadmap for Departmental Knowledge Copilot",
+    "task": "Transition to Phase 1: Multi-Format Ingestion (.docx, .pdf, .xlsx) and In-Process HNSW Vector Indexing",
     "status": "planned",
     "files": [
       "docs/plans/enterprise-copilot-v3-plan.md",
+      "src/parsers/docx-parser.ts",
+      "src/parsers/pdf-parser.ts",
+      "src/parsers/excel-parser.ts",
+      "src/vector-index.ts",
       "src/config.ts",
       "src/db.ts",
-      "src/graph-extractor.ts",
       "src/graph.ts",
-      "src/tools/search-tools.ts",
-      "src/tools/file-tools.ts",
-      "src/tools/graph-tools.ts",
-      "src/mcp-server.ts",
-      "README.md",
-      "CHANGELOG.md",
-      "ROADMAP.md"
+      "src/ingest.ts",
+      "src/mcp-server.ts"
     ],
     "blockers": [],
-    "notes": "v2.0 completed and committed. v3.0 Detailed Implementation Plan created and committed in docs/plans/enterprise-copilot-v3-plan.md."
+    "notes": "Benchmark Suite verified and all 3 audit bugs resolved. SQLite performance tuned (PRAGMA + SAVEPOINT). All TypeScript checks pass cleanly. Ready to proceed with v3.0 multi-format ingestion."
   },
   "pending_tasks": [
     {
       "phase": 1,
       "name": "Multi-Format Ingestion Layer (Word .docx, PDF, Excel .xlsx)",
       "status": "pending",
-      "notes": "Integrate mammoth, pdf-parse, xlsx in src/parsers/"
+      "notes": "Integrate mammoth, pdf-parse, xlsx in src/parsers/ with metadata preservation"
     },
     {
       "phase": 2,
+      "name": "In-Process HNSW Vector Index Optimization",
+      "status": "pending",
+      "notes": "Integrate hnswlib-node to replace O(N) cosine brute force with sub-3ms vector retrieval"
+    },
+    {
+      "phase": 3,
       "name": "Enterprise Graph Schema & SOP Auto-Extractor",
       "status": "pending",
       "notes": "Add policy, process, form, department, role entities + REQUIRES_FORM, APPROVED_BY, NEXT_STEP edges"
     },
     {
-      "phase": 3,
+      "phase": 4,
       "name": "Enterprise MCP Tools & Live File Watcher (Chokidar)",
       "status": "pending",
       "notes": "Add get_sop_flow, get_required_forms, check_policy_compliance, department_search + watcher.ts"
-    },
-    {
-      "phase": 4,
-      "name": "Sample Enterprise Knowledge Vault & Integration Tests",
-      "status": "pending",
-      "notes": "Create sample HR, Finance, IT SOP templates and full automated test suite"
     }
   ],
   "recent_changes": [
     {
-      "timestamp": "2026-08-29T22:10:00+07:00",
-      "type": "refactor",
-      "description": "Applied code review fixes: In-process file lock (withFileLock), 2-pass batch embedding in ingest.ts, modular tools architecture in src/tools/, extracted pure mergeRrf() and built comprehensive mock unit test suite",
+      "timestamp": "2026-08-30T10:10:00+07:00",
+      "type": "optimization",
+      "description": "Added SQLite PRAGMA performance tuning (64MB cache, 256MB mmap, synchronous NORMAL, temp in memory) and wrapped per-file ingest in SAVEPOINT transactions",
       "files": [
-        "src/mcp-server.ts",
-        "src/tools/search-tools.ts",
-        "src/tools/file-tools.ts",
-        "src/tools/graph-tools.ts",
-        "src/ingest.ts",
-        "src/search.ts",
-        "src/contextualizer.ts",
-        "scripts/test-rrf.ts"
+        "src/db.ts",
+        "src/ingest.ts"
       ]
     },
     {
-      "timestamp": "2026-08-29T21:45:00+07:00",
-      "type": "feature",
-      "description": "Implemented v2.0 SQLite-Native Knowledge Graph engine with k-hop Recursive CTE, zero-token graph extractor, 3 graph tables, and 5 new enterprise MCP tools",
+      "timestamp": "2026-08-30T10:00:00+07:00",
+      "type": "bugfix",
+      "description": "Fixed 3 benchmark audit bugs: (1) Graph-Hybrid scoring now includes relatedEntities, (2) Blast radius traversal now supports dedicated incoming direction, (3) HitRate@1 separated from Recall@K to avoid multi-entity GT bias",
       "files": [
-        "src/db.ts",
-        "src/graph-extractor.ts",
-        "src/graph.ts",
-        "src/ingest.ts",
-        "src/mcp-server.ts",
-        "scripts/test-graph.ts"
+        "benchmarks/runners/benchmark-engine.ts",
+        "benchmarks/evaluators/metrics.ts",
+        "src/graph.ts"
+      ]
+    },
+    {
+      "timestamp": "2026-08-30T09:30:00+07:00",
+      "type": "feature",
+      "description": "Implemented Enterprise Benchmark Suite (synthetic vault generator, HotpotQA adapter, BEIR metrics evaluator, visual Mermaid quadrant and bar chart report generator)",
+      "files": [
+        "benchmarks/run-benchmark.ts",
+        "benchmarks/generators/synthetic-vault-generator.ts",
+        "benchmarks/generators/hf-dataset-loader.ts",
+        "benchmarks/runners/benchmark-engine.ts",
+        "benchmarks/evaluators/metrics.ts",
+        "benchmarks/evaluators/system-profiler.ts",
+        "benchmarks/evaluators/report-generator.ts",
+        "BENCHMARK_REPORT.md"
       ]
     }
   ],
-  "errors_encountered": [],
+  "errors_encountered": [
+    {
+      "error": "Graph-Hybrid search produced identical retrieval scores to Hybrid search in benchmark report",
+      "solution": "Fixed benchmark-engine.ts mapping to flatten relatedEntities.name alongside filePath into retrievedIds",
+      "resolved": true
+    },
+    {
+      "error": "Blast radius F1 was abnormally low (~18%) compared to 100% on lineage and conflicts",
+      "solution": "Added dedicated incoming direction traversal in kHopNeighbors SQL to query upstream callers (target_id -> source_id)",
+      "resolved": true
+    },
+    {
+      "error": "node:sqlite DatabaseSync does not have .transaction() method",
+      "solution": "Used manual SAVEPOINT, RELEASE, and ROLLBACK TO SQL statements",
+      "resolved": true
+    }
+  ],
   "decisions_made": [
     {
-      "decision": "Use SQLite WITH RECURSIVE CTE for Graph Traversal instead of PostgreSQL/pgvector or Neo4j",
-      "reason": "Maintains 100% zero-dependency local Node.js + TypeScript stack, executes graph traversal inside DB engine with pushdown computation and index optimization"
+      "decision": "Support dedicated 'incoming' direction in kHopNeighbors",
+      "reason": "Allows precise upstream blast radius analysis (who depends on this schema/service) without polluting results with downstream dependencies"
     },
     {
-      "decision": "Implement in-process Promise queue file lock (withFileLock)",
-      "reason": "Prevents lost-update race conditions when multiple concurrent agents append or write to the same note"
+      "decision": "Separate calculateHitRateAtK() binary metric from calculateRecallAtK()",
+      "reason": "Prevents artificial penalty on HitRate@1 when a test query has multiple expected ground truth entities"
     },
     {
-      "decision": "2-pass batch embedding in ingest pipeline",
-      "reason": "Reduces HTTP request round-trip overhead from N+1 to 1 per file while keeping contextual retrieval flexible"
-    },
-    {
-      "decision": "Split monolithic mcp-server.ts into domain-focused tool modules (src/tools/)",
-      "reason": "Improves maintainability, readability, and isolates tool schema definitions from HTTP server transport setup"
+      "decision": "Apply SQLite PRAGMA cache, mmap, and SAVEPOINT batching in core engine",
+      "reason": "Significantly accelerates write throughput and FTS5 querying without introducing external database dependencies"
     }
   ]
 }
