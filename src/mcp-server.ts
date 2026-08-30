@@ -3,13 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config } from "./config.js";
 import { getDb } from "./db.js";
-import { hybridSearch, keywordSearch, vectorSearch } from "./search.js";
-import { runIngest } from "./ingest.js";
+import { registerSearchTools } from "./tools/search-tools.js";
+import { registerFileTools } from "./tools/file-tools.js";
+import { registerGraphTools } from "./tools/graph-tools.js";
 
 // ==========================================
 // Security & Path Utilities
@@ -71,412 +71,12 @@ export function listVaultFiles(dir: string, prefix?: string): VaultFileInfo[] {
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "knowledge-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
-  // Tool 1: hybrid_search
-  server.tool(
-    "hybrid_search",
-    "Tìm kiếm tài liệu nội bộ kết hợp Full-text BM25 + Vector Cosine qua thuật toán Reciprocal Rank Fusion (RRF k=60) để tra cứu chi tiết các chunk kiến thức.",
-    {
-      query: z.string().describe("Nội dung hoặc câu hỏi cần tìm trong knowledge vault"),
-      k: z.number().optional().default(8).describe("Số lượng kết quả cần lấy (mặc định: 8)"),
-    },
-    async ({ query, k }) => {
-      try {
-        const results = await hybridSearch(query, k);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error executing hybrid search: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 2: keyword_search
-  server.tool(
-    "keyword_search",
-    "Tìm kiếm từ khóa chính xác qua SQLite FTS5 (BM25 ranking)",
-    {
-      query: z.string().describe("Từ khóa hoặc cụm từ cần tìm"),
-      k: z.number().optional().default(8).describe("Số lượng kết quả cần lấy (mặc định: 8)"),
-    },
-    async ({ query, k }) => {
-      try {
-        const results = await keywordSearch(query, k);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error executing keyword search: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 3: similar_notes
-  server.tool(
-    "similar_notes",
-    "Tìm kiếm tương đồng ngữ nghĩa bằng Vector Cosine Similarity",
-    {
-      query: z.string().describe("Câu hỏi hoặc đoạn văn bản mẫu cần tìm các ghi chú tương đồng ngữ nghĩa"),
-      k: z.number().optional().default(8).describe("Số lượng kết quả cần lấy (mặc định: 8)"),
-    },
-    async ({ query, k }) => {
-      try {
-        const results = await vectorSearch(query, k);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error executing vector search: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 4: read_note
-  server.tool(
-    "read_note",
-    "Đọc nội dung đầy đủ của một file ghi chú trong vault (chặn path traversal)",
-    {
-      path: z.string().describe("Đường dẫn tương đối của file trong vault (ví dụ: mcp-architecture.md hoặc docs/guide.md)"),
-    },
-    async ({ path: notePath }) => {
-      try {
-        const { fullPath, relPath } = resolveSafePath(notePath);
-
-        if (!fs.existsSync(fullPath)) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text",
-                text: `File not found: ${relPath}`,
-              },
-            ],
-          };
-        }
-
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text",
-                text: `Target is a directory, not a file: ${relPath}`,
-              },
-            ],
-          };
-        }
-
-        const content = fs.readFileSync(fullPath, "utf-8");
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  path: relPath,
-                  mtime: stat.mtime.toISOString(),
-                  size: stat.size,
-                  content,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error reading note: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 5: list_notes
-  server.tool(
-    "list_notes",
-    "Liệt kê danh sách tất cả các file ghi chú hiện có trong vault (hỗ trợ lọc theo prefix)",
-    {
-      prefix: z.string().optional().describe("Tiền tố đường dẫn hoặc thư mục để lọc (ví dụ: 'docs/' hoặc 'guides')"),
-    },
-    async ({ prefix }) => {
-      try {
-        const files = listVaultFiles(config.vaultDir, prefix);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  count: files.length,
-                  vaultDir: config.vaultDir,
-                  prefix: prefix ?? null,
-                  notes: files,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error listing notes: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 6: context_for_query
-  server.tool(
-    "context_for_query",
-    "TỰ ĐỘNG DÙNG công cụ này để tra cứu tài liệu nội bộ, quy chuẩn coding Sitecore, kiến trúc và best practices dự án khi người dùng hỏi các câu hỏi kỹ thuật/nghiệp vụ. Ghép các đoạn context liên quan nhất thành Markdown sẵn sàng nhúng vào prompt.",
-    {
-      query: z.string().describe("Câu hỏi hoặc yêu cầu cần lấy ngữ cảnh"),
-      maxTokens: z.number().optional().default(2000).describe("Giới hạn token ước tính cho ngữ cảnh (mặc định: 2000)"),
-    },
-    async ({ query, maxTokens }) => {
-      try {
-        const chunks = await hybridSearch(query, 15);
-        let totalEstimatedTokens = 0;
-        const includedSources: Array<{
-          filePath: string;
-          headingPath: string | null;
-          score: number;
-        }> = [];
-        let contextMarkdown = "";
-
-        for (const chunk of chunks) {
-          const header = `### [${chunk.filePath}]${chunk.headingPath ? ` > ${chunk.headingPath}` : ""}\n`;
-          const body = `${chunk.content}\n\n---\n\n`;
-          const block = header + body;
-          const estimatedTokens = Math.ceil(block.length / 4);
-
-          if (totalEstimatedTokens + estimatedTokens > maxTokens && includedSources.length > 0) {
-            break;
-          }
-
-          contextMarkdown += block;
-          totalEstimatedTokens += estimatedTokens;
-          includedSources.push({
-            filePath: chunk.filePath,
-            headingPath: chunk.headingPath,
-            score: Number(chunk.score.toFixed(4)),
-          });
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  query,
-                  maxTokens,
-                  estimatedTokens: totalEstimatedTokens,
-                  chunksCount: includedSources.length,
-                  sources: includedSources,
-                  context: contextMarkdown.trim(),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving context: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 7: write_note
-  server.tool(
-    "write_note",
-    "Tạo mới một file ghi chú trong vault và tự động cập nhật chỉ mục tìm kiếm (reindex) tức thì",
-    {
-      path: z.string().describe("Đường dẫn file cần tạo trong vault (ví dụ: notes/new-idea.md)"),
-      content: z.string().describe("Nội dung ghi chú"),
-      overwrite: z.boolean().optional().default(false).describe("Cho phép ghi đè nếu file đã tồn tại"),
-    },
-    async ({ path: notePath, content, overwrite }) => {
-      try {
-        const { fullPath, relPath } = resolveSafePath(notePath);
-
-        if (fs.existsSync(fullPath) && !overwrite) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text",
-                text: `Error: File '${relPath}' already exists. Set overwrite=true to replace it.`,
-              },
-            ],
-          };
-        }
-
-        const parentDir = path.dirname(fullPath);
-        if (!fs.existsSync(parentDir)) {
-          fs.mkdirSync(parentDir, { recursive: true });
-        }
-
-        fs.writeFileSync(fullPath, content, "utf-8");
-
-        // Auto-reindex this file immediately
-        const ingestStats = await runIngest({ onlyFile: fullPath });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  path: relPath,
-                  message: "Note written and reindexed successfully",
-                  ingestStats,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error writing note: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  // Tool 8: append_note
-  server.tool(
-    "append_note",
-    "Bổ sung thêm nội dung vào cuối một file ghi chú trong vault và tự động cập nhật chỉ mục tìm kiếm (reindex) tức thì",
-    {
-      path: z.string().describe("Đường dẫn file cần bổ sung nội dung trong vault (ví dụ: notes/journal.md)"),
-      content: z.string().describe("Nội dung cần ghi thêm"),
-    },
-    async ({ path: notePath, content }) => {
-      try {
-        const { fullPath, relPath } = resolveSafePath(notePath);
-
-        const parentDir = path.dirname(fullPath);
-        if (!fs.existsSync(parentDir)) {
-          fs.mkdirSync(parentDir, { recursive: true });
-        }
-
-        if (fs.existsSync(fullPath)) {
-          const existing = fs.readFileSync(fullPath, "utf-8");
-          const separator = existing.endsWith("\n") ? "\n" : "\n\n";
-          fs.writeFileSync(fullPath, existing + separator + content, "utf-8");
-        } else {
-          fs.writeFileSync(fullPath, content, "utf-8");
-        }
-
-        // Auto-reindex this file immediately
-        const ingestStats = await runIngest({ onlyFile: fullPath });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  path: relPath,
-                  message: "Note appended and reindexed successfully",
-                  ingestStats,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Error appending note: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
+  registerSearchTools(server);
+  registerFileTools(server);
+  registerGraphTools(server);
 
   return server;
 }
@@ -497,7 +97,15 @@ export async function startServer(customPort?: number): Promise<{
   const app = express();
   app.use(express.json({ limit: "10mb" }));
 
-  // Auth Middleware
+  // Auth Middleware — Fix: warn when no token is configured
+  if (!config.mcpAuthToken) {
+    console.warn(
+      "[Auth] WARNING: MCP_AUTH_TOKEN is not set. " +
+      "Server is open to any local connection. " +
+      "Set MCP_AUTH_TOKEN in .env if exposing over network."
+    );
+  }
+
   const authMiddleware: express.RequestHandler = (req, res, next) => {
     if (!config.mcpAuthToken) {
       return next();
@@ -533,10 +141,7 @@ export async function startServer(customPort?: number): Promise<{
     res.json({
       status: "ok",
       name: "knowledge-mcp",
-      version: "0.1.0",
-      vaultDir: config.vaultDir,
-      dbPath: config.dbPath,
-      activeSessions: sessions.size,
+      version: "0.2.0",
       authEnabled: Boolean(config.mcpAuthToken),
     });
   });

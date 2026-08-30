@@ -14,12 +14,16 @@ db/*.db-wal
 db/*.db-shm
 *.log
 
-# Antigravity session
-.brain/session.json
+# Benchmark & Synthetic test vaults
+data/synthetic-vault/
+data/standard-vault/
+benchmarks/datasets/synthetic_ground_truth.json
+benchmarks/datasets/standard_ground_truth.json
 
-# Ignore all user private notes in data/raw except default sample files
+# Ignore user private notes in data/raw except default sample files
 data/raw/*
 !data/raw/mcp-architecture.md
 !data/raw/sqlite-fts5.md
 !data/raw/typescript-guide.md
 !data/raw/.gitkeep
+

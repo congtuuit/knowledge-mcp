@@ -46,6 +46,7 @@ ${chunkContent}
         temperature: 0.2,
         stream: false,
       }),
+      signal: AbortSignal.timeout(1500),
     });
 
     if (!res.ok) {
@@ -55,17 +56,23 @@ ${chunkContent}
     }
 
     const rawText = await res.text();
-    let data: any;
+    interface ChatCompletionResponse {
+      choices?: Array<{
+        message?: { content?: string };
+        delta?: { content?: string };
+      }>;
+    }
+    let data: ChatCompletionResponse | undefined;
 
     if (rawText.startsWith("data: ")) {
       const firstDataLine = rawText
         .split("\n")
         .find((line) => line.startsWith("data: ") && line.trim() !== "data: [DONE]");
       if (firstDataLine) {
-        data = JSON.parse(firstDataLine.replace(/^data:\s*/, ""));
+        data = JSON.parse(firstDataLine.replace(/^data:\s*/, "")) as ChatCompletionResponse;
       }
     } else {
-      data = JSON.parse(rawText);
+      data = JSON.parse(rawText) as ChatCompletionResponse;
     }
 
     const contextText =

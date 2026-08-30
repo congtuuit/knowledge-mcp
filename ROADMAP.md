@@ -1,6 +1,6 @@
-# 🗺️ Knowledge MCP - Development Roadmap
+﻿# 🗺️ Knowledge MCP - Development Roadmap
 
-This document outlines the planned feature roadmap, architectural enhancements, and upcoming releases for **Knowledge MCP Server**.
+This document outlines the planned feature roadmap, architectural enhancements, and release milestones for **Knowledge MCP Server**.
 
 ---
 
@@ -10,21 +10,49 @@ This document outlines the planned feature roadmap, architectural enhancements, 
 gantt
     title Knowledge MCP Strategic Roadmap
     dateFormat  YYYY-MM-DD
-    section Phase 1
-    Live File Watcher (Chokidar)         :done, p1, 2026-08-25, 2026-09-05
-    section Phase 2
-    Surgical Note Editing & Patching     :active, p2, 2026-09-06, 2026-09-20
-    section Phase 3
-    Multi-format Parsing (PDF/DOCX/XLSX) :p3, 2026-09-21, 2026-10-10
-    section Phase 4
-    Cross-Encoder Re-ranking Engine      :p4, 2026-10-11, 2026-10-30
-    section Phase 5
-    Local Web Dashboard & RAG Playground :p5, 2026-11-01, 2026-11-25
+    section Completed
+    v1.0 Core Hybrid RAG Engine          :done, v1, 2026-08-01, 2026-08-20
+    v2.0 SQLite-Native Knowledge Graph   :done, v2, 2026-08-25, 2026-08-29
+    section Planned Milestones
+    Phase 1: Live File Watcher (Chokidar):active, p1, 2026-09-01, 2026-09-15
+    Phase 2: Surgical Note Editing (AST) :p2, 2026-09-16, 2026-09-30
+    Phase 3: Multi-format (PDF/DOCX/XLSX):p3, 2026-10-01, 2026-10-20
+    Phase 4: Cross-Encoder Re-ranking    :p4, 2026-10-21, 2026-11-10
+    Phase 5: Local Web Dashboard & GUI   :p5, 2026-11-11, 2026-11-30
 ```
 
 ---
 
-## 🚀 Phase Details
+## 🏆 Completed Releases
+
+### 🧠 Release v2.0: SQLite-Native Enterprise Knowledge Graph Engine (Done - 2026-08-29)
+* **Goal**: Transform Knowledge MCP from a personal RAG vault into an enterprise-grade Graph-RAG engine with multi-hop reasoning, blast radius impact analysis, and dependency lineage tracing without introducing heavy external graph DB dependencies.
+* **Key Deliverables**:
+  - [x] **SQLite Recursive CTE Graph Traversal**: Pure in-database $k$-hop neighbor traversal (`WITH RECURSIVE`) with exponential decay scoring ($\gamma$) and cycle protection via `json_array`/`json_each`.
+  - [x] **Zero-Token Graph Extraction**: Rule-based extraction from Markdown `[[wikilinks]]`, cross-document markdown links `[text](./path.md)`, and YAML frontmatter (`depends_on`, `implements`, `supersedes`, `conflicts_with`, `owner`).
+  - [x] **Graph Data Schema**: Three indexed tables (`entities`, `edges`, `entity_chunk_map`) keeping strict synchronization with SQLite FTS5 chunk index.
+  - [x] **5 New Enterprise MCP Tools (Total 13 Tools)**:
+    - `impact_analysis`: Multi-hop blast radius impact analysis.
+    - `graph_hybrid_search`: BM25 + Vector + 1-hop graph-expanded search context.
+    - `detect_conflicts`: Identifies `CONFLICTS_WITH` relationships across policies and specs.
+    - `get_entity_lineage`: Traces full upstream and downstream dependency chains.
+    - `find_owner`: Resolves team ownership via `OWNED_BY` edges.
+  - [x] **Security & Concurrency Hardening**:
+    - In-process file locking (`withFileLock`) preventing race conditions on concurrent note edits.
+    - 2-pass batch embedding (`embedBatch`) reducing HTTP round-trips from $N+1$ to 1 per file.
+    - Clean modular tool architecture (`src/tools/`).
+
+### 📦 Release v1.0: Core Local-First Hybrid RAG Engine (Done - 2026-08-20)
+* **Key Deliverables**:
+  - [x] Local SQLite + FTS5 full-text keyword search (BM25).
+  - [x] Vector Cosine Similarity search with BLOB storage (`Float32Array`).
+  - [x] Reciprocal Rank Fusion (RRF $k=60$) merging keyword + semantic search.
+  - [x] Contextual Retrieval with LLM chunk contextualization.
+  - [x] MCP Streamable HTTP transport on `/mcp`.
+
+---
+
+## 🚀 Upcoming Roadmap Phases
 
 ### ⚡ Phase 1: Real-Time Live File Watcher (Zero-Touch Reindexing)
 * **Goal**: Eliminate manual `npm run reindex` commands when users edit notes externally in Obsidian, VS Code, or Notepad.
