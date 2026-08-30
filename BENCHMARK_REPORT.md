@@ -51,6 +51,7 @@ quadrantChart
 ### 3.1. Tốc độ Indexing (Chunks / Giây - Càng cao càng tốt)
 
 ```mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#2563eb" } } } }%%
 xychart-beta
     title "Toc do Ingest & Indexing Du lieu (Chunks / Giay)"
     x-axis ["Knowledge MCP", "Khoj", "Obsidian Smart", "Mem0", "Zep (Graphiti)", "MS GraphRAG"]
@@ -61,6 +62,7 @@ xychart-beta
 ### 3.2. Chi phí Token API cho 1,000 Tài liệu ($ USD - Càng thấp càng tốt)
 
 ```mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#0284c7" } } } }%%
 xychart-beta
     title "Chi phi Token LLM de Xay dung Index & Do thi (USD / 1000 files)"
     x-axis ["Knowledge MCP", "Khoj", "Obsidian Smart", "Mem0", "Zep (Graphiti)", "MS GraphRAG"]
@@ -71,6 +73,7 @@ xychart-beta
 ### 3.3. Bộ nhớ RAM Tiêu thụ (MB - Càng thấp càng tối ưu)
 
 ```mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#3b82f6" } } } }%%
 xychart-beta
     title "Muc chiem dung RAM o trang thai hoat dong (Peak RAM MB)"
     x-axis ["Knowledge MCP", "Obsidian Smart", "Mem0", "Khoj", "MS GraphRAG", "Zep (Graphiti)"]

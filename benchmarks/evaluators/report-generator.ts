@@ -67,7 +67,7 @@ quadrantChart
     quadrant-2 "Nặng nề & Đắt đỏ (Enterprise Cloud)"
     quadrant-3 "Legacy RAG (Không có Graph)"
     quadrant-4 "Gọn nhưng thiếu Graph"
-    "Knowledge MCP (Dự án)": [0.88, 0.90]
+    "Knowledge MCP (Du an)": [0.88, 0.90]
     "Microsoft GraphRAG": [0.15, 0.88]
     "Zep (Graphiti)": [0.35, 0.82]
     "Mem0 (Embedchain)": [0.42, 0.70]
@@ -82,28 +82,31 @@ quadrantChart
 ### 3.1. Tốc độ Indexing (Chunks / Giây - Càng cao càng tốt)
 
 \`\`\`mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#2563eb" } } } }%%
 xychart-beta
-    title "Tốc độ Ingest & Indexing Dữ liệu (Chunks / Giây)"
+    title "Toc do Ingest & Indexing Du lieu (Chunks / Giay)"
     x-axis ["Knowledge MCP", "Khoj", "Obsidian Smart", "Mem0", "Zep (Graphiti)", "MS GraphRAG"]
-    y-axis "Chunks / giây" 0 --> 260
+    y-axis "Chunks / giay" 0 --> 260
     bar [${Math.round(ingestion.throughputChunksPerSec)}, 55, 50, 25, 15, 4]
 \`\`\`
 
 ### 3.2. Chi phí Token API cho 1,000 Tài liệu ($ USD - Càng thấp càng tốt)
 
 \`\`\`mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#0284c7" } } } }%%
 xychart-beta
-    title "Chi phí Token LLM để Xây dựng Index & Đồ thị ($ USD / 1,000 files)"
+    title "Chi phi Token LLM de Xay dung Index & Do thi (USD / 1000 files)"
     x-axis ["Knowledge MCP", "Khoj", "Obsidian Smart", "Mem0", "Zep (Graphiti)", "MS GraphRAG"]
-    y-axis "Chi phí ($ USD)" 0 --> 40
+    y-axis "Chi phi (USD)" 0 --> 40
     bar [0, 0, 0, 3.5, 5.8, 35.0]
 \`\`\`
 
 ### 3.3. Bộ nhớ RAM Tiêu thụ (MB - Càng thấp càng tối ưu)
 
 \`\`\`mermaid
+%%{init: { "themeVariables": { "xyChart": { "plotColorPalette": "#3b82f6" } } } }%%
 xychart-beta
-    title "Mức chiếm dụng RAM ở trạng thái hoạt động (Peak RAM MB)"
+    title "Muc chiem dung RAM o trang thai hoat dong (Peak RAM MB)"
     x-axis ["Knowledge MCP", "Obsidian Smart", "Mem0", "Khoj", "MS GraphRAG", "Zep (Graphiti)"]
     y-axis "RAM (MB)" 0 --> 600
     bar [${Math.round(ingestion.memoryPeakSnapshot.rssMB)}, 100, 150, 300, 320, 550]
@@ -124,29 +127,29 @@ ${competitorTable}
 \`\`\`mermaid
 flowchart TB
     subgraph Ingestion["📥 1. Zero-Token Ingestion Pipeline"]
-        MD["Markdown Files\n(Frontmatter + [[wikilinks]])"] --> AST["Markdown AST Chunker\n(gray-matter)"]
-        AST --> GE["Zero-Token Graph Extractor\n(entities & typed edges)"]
-        AST --> BM25["SQLite FTS5 Tokenizer\n(chunks_fts)"]
-        AST --> EMB["Vector Embedder\n(Float32Array BLOB)"]
+        MD["Markdown Files<br/>Frontmatter + wikilinks"] --> AST["Markdown AST Chunker<br/>(gray-matter)"]
+        AST --> GE["Zero-Token Graph Extractor<br/>(entities & typed edges)"]
+        AST --> BM25["SQLite FTS5 Tokenizer<br/>(chunks_fts)"]
+        AST --> EMB["Vector Embedder<br/>(Float32Array BLOB)"]
     end
 
     subgraph Storage["💾 2. Native SQLite Engine (node:sqlite)"]
-        GE --> DB_G[("3 Graph Tables\nentities, edges, entity_chunk_map")]
-        BM25 --> DB_FTS[("FTS5 Virtual Table\nBM25 Index")]
-        EMB --> DB_VEC[("Chunks Table\nVector Embeddings")]
+        GE --> DB_G[("3 Graph Tables<br/>entities, edges, entity_chunk_map")]
+        BM25 --> DB_FTS[("FTS5 Virtual Table<br/>BM25 Index")]
+        EMB --> DB_VEC[("Chunks Table<br/>Vector Embeddings")]
     end
 
     subgraph QueryEngine["⚡ 3. Dual-Engine Retrieval & Pushdown CTE"]
-        Q["User Query / MCP Tool Call"] --> HYB["Hybrid Search Engine\n(FTS5 BM25 + Vector Cosine)"]
-        Q --> CTE["K-Hop Recursive CTE Engine\n(WITH RECURSIVE decay traversal)"]
-        HYB --> RRF["RRF Fusion (k=60)\n1 / (60 + rank)"]
-        CTE --> GRAPH_RES["Lineage / Blast Radius / Conflicts\n(Pushdown in C Engine < 1ms)"]
+        Q["User Query / MCP Tool Call"] --> HYB["Hybrid Search Engine<br/>(FTS5 BM25 + Vector Cosine)"]
+        Q --> CTE["K-Hop Recursive CTE Engine<br/>(WITH RECURSIVE decay traversal)"]
+        HYB --> RRF["RRF Fusion (k=60)<br/>1 / (60 + rank)"]
+        CTE --> GRAPH_RES["Lineage / Blast Radius / Conflicts<br/>(Pushdown in C Engine < 1ms)"]
         RRF --> MERGE["Graph-Hybrid Context Pack"]
         GRAPH_RES --> MERGE
     end
 
     subgraph Transport["🚀 4. MCP Streamable HTTP Transport"]
-        MERGE --> MCP["MCP Server (POST /mcp)\nBearer Auth + In-Process File Lock"]
+        MERGE --> MCP["MCP Server (POST /mcp)<br/>Bearer Auth + In-Process File Lock"]
         MCP --> CLIENTS["AI Agents: Antigravity IDE / Claude Code / Cursor"]
     end
 
@@ -163,7 +166,7 @@ flowchart TB
 Đo lường trên toàn bộ tập câu hỏi: *Single-hop Fact*, *Exact Code / Error Tokens*, và *Multi-hop Navigation*.
 
 | Chế độ tìm kiếm (Retrieval Mode) | HitRate@1 | Recall@3 | Recall@5 | Recall@10 | MRR | NDCG@5 | Latency p50 | Latency p95 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 ${modeTable}
 
 ### 💡 Nhận xét chuyên sâu:
@@ -176,7 +179,7 @@ ${modeTable}
 
 | Tiêu chí Đồ thị Tri thức | Kết quả Đo lường | Ý nghĩa & Ứng dụng thực tế |
 | :--- | :---: | :--- |
-| **Multi-Hop Path Lineage Match** | **${(graphMetrics.multiHopPathAccuracy.exactMatchRate * 100).toFixed(1)}%** | Truy vết chính xác chuỗi: *API $\\rightarrow$ Service $\\rightarrow$ Database Schema*. |
+| **Multi-Hop Path Lineage Match** | **${(graphMetrics.multiHopPathAccuracy.exactMatchRate * 100).toFixed(1)}%** | Truy vết chính xác chuỗi: *API → Service → Database Schema*. |
 | **Blast Radius / Impact Analysis F1** | **${(graphMetrics.blastRadiusF1.f1 * 100).toFixed(1)}%** | Xác định toàn bộ các module và tài liệu bị ảnh hưởng khi có sự thay đổi CSDL / API. |
 | **Conflict & Supersede Recall** | **${(graphMetrics.conflictDetectionRecall * 100).toFixed(1)}%** | Tự động phát hiện các chính sách mâu thuẫn (\`CONFLICTS_WITH\`) hoặc hết hiệu lực (\`SUPERSEDES\`). |
 | **Ownership Resolution Accuracy** | **${(graphMetrics.ownershipAccuracy * 100).toFixed(1)}%** | Xác định đúng Team/Chủ trì qua quan hệ \`OWNED_BY\`. |
