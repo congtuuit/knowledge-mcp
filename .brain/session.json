@@ -1,0 +1,99 @@
+{
+  "updated_at": "2026-08-29T23:11:00+07:00",
+  "working_on": {
+    "feature": "Knowledge MCP v3.0 Enterprise SOP & Knowledge Copilot",
+    "task": "Strategic Planning & Implementation Roadmap for Departmental Knowledge Copilot",
+    "status": "planned",
+    "files": [
+      "docs/plans/enterprise-copilot-v3-plan.md",
+      "src/config.ts",
+      "src/db.ts",
+      "src/graph-extractor.ts",
+      "src/graph.ts",
+      "src/tools/search-tools.ts",
+      "src/tools/file-tools.ts",
+      "src/tools/graph-tools.ts",
+      "src/mcp-server.ts",
+      "README.md",
+      "CHANGELOG.md",
+      "ROADMAP.md"
+    ],
+    "blockers": [],
+    "notes": "v2.0 completed and committed. v3.0 Detailed Implementation Plan created and committed in docs/plans/enterprise-copilot-v3-plan.md."
+  },
+  "pending_tasks": [
+    {
+      "phase": 1,
+      "name": "Multi-Format Ingestion Layer (Word .docx, PDF, Excel .xlsx)",
+      "status": "pending",
+      "notes": "Integrate mammoth, pdf-parse, xlsx in src/parsers/"
+    },
+    {
+      "phase": 2,
+      "name": "Enterprise Graph Schema & SOP Auto-Extractor",
+      "status": "pending",
+      "notes": "Add policy, process, form, department, role entities + REQUIRES_FORM, APPROVED_BY, NEXT_STEP edges"
+    },
+    {
+      "phase": 3,
+      "name": "Enterprise MCP Tools & Live File Watcher (Chokidar)",
+      "status": "pending",
+      "notes": "Add get_sop_flow, get_required_forms, check_policy_compliance, department_search + watcher.ts"
+    },
+    {
+      "phase": 4,
+      "name": "Sample Enterprise Knowledge Vault & Integration Tests",
+      "status": "pending",
+      "notes": "Create sample HR, Finance, IT SOP templates and full automated test suite"
+    }
+  ],
+  "recent_changes": [
+    {
+      "timestamp": "2026-08-29T22:10:00+07:00",
+      "type": "refactor",
+      "description": "Applied code review fixes: In-process file lock (withFileLock), 2-pass batch embedding in ingest.ts, modular tools architecture in src/tools/, extracted pure mergeRrf() and built comprehensive mock unit test suite",
+      "files": [
+        "src/mcp-server.ts",
+        "src/tools/search-tools.ts",
+        "src/tools/file-tools.ts",
+        "src/tools/graph-tools.ts",
+        "src/ingest.ts",
+        "src/search.ts",
+        "src/contextualizer.ts",
+        "scripts/test-rrf.ts"
+      ]
+    },
+    {
+      "timestamp": "2026-08-29T21:45:00+07:00",
+      "type": "feature",
+      "description": "Implemented v2.0 SQLite-Native Knowledge Graph engine with k-hop Recursive CTE, zero-token graph extractor, 3 graph tables, and 5 new enterprise MCP tools",
+      "files": [
+        "src/db.ts",
+        "src/graph-extractor.ts",
+        "src/graph.ts",
+        "src/ingest.ts",
+        "src/mcp-server.ts",
+        "scripts/test-graph.ts"
+      ]
+    }
+  ],
+  "errors_encountered": [],
+  "decisions_made": [
+    {
+      "decision": "Use SQLite WITH RECURSIVE CTE for Graph Traversal instead of PostgreSQL/pgvector or Neo4j",
+      "reason": "Maintains 100% zero-dependency local Node.js + TypeScript stack, executes graph traversal inside DB engine with pushdown computation and index optimization"
+    },
+    {
+      "decision": "Implement in-process Promise queue file lock (withFileLock)",
+      "reason": "Prevents lost-update race conditions when multiple concurrent agents append or write to the same note"
+    },
+    {
+      "decision": "2-pass batch embedding in ingest pipeline",
+      "reason": "Reduces HTTP request round-trip overhead from N+1 to 1 per file while keeping contextual retrieval flexible"
+    },
+    {
+      "decision": "Split monolithic mcp-server.ts into domain-focused tool modules (src/tools/)",
+      "reason": "Improves maintainability, readability, and isolates tool schema definitions from HTTP server transport setup"
+    }
+  ]
+}

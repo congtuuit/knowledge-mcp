@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import type { EntityType, EdgeType, EdgeSourceType } from "./db.js";
 
 // ==========================================
@@ -157,6 +157,7 @@ export function extractGraph(
   content: string
 ): ExtractedGraph {
   const rawName =
+    (frontmatter.id as string | undefined) ??
     (frontmatter.title as string | undefined) ??
     path.basename(filePath, path.extname(filePath));
 

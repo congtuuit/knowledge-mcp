@@ -1,4 +1,4 @@
-﻿import { getDb, type EntityRow, type EntityWithScore, type EdgeType } from "./db.js";
+import { getDb, type EntityRow, type EntityWithScore, type EdgeType } from "./db.js";
 import { hybridSearch, type SearchResult } from "./search.js";
 
 // ==========================================
@@ -50,6 +50,7 @@ export interface LineageNode {
 export function kHopNeighbors(params: {
   startEntityId: string;
   edgeTypes?: EdgeType[];
+  direction?: "outgoing" | "incoming" | "both";
   maxK?: number;
   gamma?: number;
   threshold?: number;
@@ -58,6 +59,7 @@ export function kHopNeighbors(params: {
   const {
     startEntityId,
     edgeTypes = ["DEPENDS_ON", "REFERENCES", "IMPLEMENTS"],
+    direction = "both",
     maxK = 2,
     gamma = 0.6,
     threshold = 0.05,
@@ -65,65 +67,104 @@ export function kHopNeighbors(params: {
   } = params;
 
   const db = getDb();
-
-  // SQLite does not support binding arrays, so we build the IN clause safely
-  // edgeTypes is a controlled enum — safe to interpolate
   const edgePlaceholders = edgeTypes.map(() => "?").join(", ");
 
-  // JSON path cycle detection using json_each on accumulated path array
-  const sql = `
-    WITH RECURSIVE traversal(node_id, depth, prop_score, path) AS (
-      -- Base case: direct neighbors (1-hop)
-      SELECT
-        e.target_id                              AS node_id,
-        1                                        AS depth,
-        (e.weight * e.confidence * ?)            AS prop_score,
-        json_array(?, e.target_id)               AS path
-      FROM edges e
-      WHERE e.source_id = ?
-        AND e.edge_type IN (${edgePlaceholders})
+  let sql = "";
+  let bindings: any[] = [];
 
-      UNION ALL
+  if (direction === "outgoing") {
+    sql = `
+      WITH RECURSIVE traversal(node_id, depth, prop_score, path) AS (
+        SELECT
+          e.target_id                              AS node_id,
+          1                                        AS depth,
+          (e.weight * e.confidence * ?)            AS prop_score,
+          json_array(?, e.target_id)               AS path
+        FROM edges e
+        WHERE e.source_id = ?
+          AND e.edge_type IN (${edgePlaceholders})
 
-      -- Recursive step
+        UNION ALL
+
+        SELECT
+          e.target_id                                                      AS node_id,
+          t.depth + 1                                                      AS depth,
+          CAST(t.prop_score * e.weight * e.confidence * ? AS REAL)         AS prop_score,
+          json_insert(t.path, '$[#]', e.target_id)                         AS path
+        FROM traversal t
+        JOIN edges e ON e.source_id = t.node_id
+          AND e.edge_type IN (${edgePlaceholders})
+        WHERE t.depth < ?
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(t.path) WHERE value = e.target_id
+          )
+      )
       SELECT
-        e.target_id                                                      AS node_id,
-        t.depth + 1                                                      AS depth,
-        CAST(t.prop_score * e.weight * e.confidence * ? AS REAL)         AS prop_score,
-        json_insert(t.path, '$[#]', e.target_id)                         AS path
+        en.id, en.name, en.type, en.file_id, en.source, en.metadata, en.created_at,
+        f.path AS file_path,
+        MAX(t.prop_score) AS influence_score,
+        MIN(t.depth) AS min_depth
       FROM traversal t
-      JOIN edges e ON e.source_id = t.node_id
-        AND e.edge_type IN (${edgePlaceholders})
-      WHERE t.depth < ?
-        AND NOT EXISTS (
-          SELECT 1 FROM json_each(t.path) WHERE value = e.target_id
-        )
-    )
-    SELECT
-      en.id,
-      en.name,
-      en.type,
-      en.file_id,
-      en.source,
-      en.metadata,
-      en.created_at,
-      f.path          AS file_path,
-      MAX(t.prop_score)  AS influence_score,
-      MIN(t.depth)       AS min_depth
-    FROM traversal t
-    JOIN entities en ON en.id = t.node_id
-    LEFT JOIN files f ON f.id = en.file_id
-    GROUP BY en.id
-    HAVING MAX(t.prop_score) >= ?
-    ORDER BY influence_score DESC
-    LIMIT ?
-  `;
+      JOIN entities en ON en.id = t.node_id
+      LEFT JOIN files f ON f.id = en.file_id
+      GROUP BY en.id
+      HAVING MAX(t.prop_score) >= ?
+      ORDER BY influence_score DESC
+      LIMIT ?
+    `;
+    bindings = [
+      gamma, startEntityId, startEntityId, ...edgeTypes,
+      gamma, ...edgeTypes, maxK,
+      threshold, limit,
+    ];
+  } else {
+    // direction === "both" or "incoming"
+    sql = `
+      WITH RECURSIVE traversal(node_id, depth, prop_score, path) AS (
+        SELECT
+          (CASE WHEN e.source_id = ? THEN e.target_id ELSE e.source_id END) AS node_id,
+          1                                        AS depth,
+          (e.weight * e.confidence * ?)            AS prop_score,
+          json_array(?, (CASE WHEN e.source_id = ? THEN e.target_id ELSE e.source_id END)) AS path
+        FROM edges e
+        WHERE (e.source_id = ? OR e.target_id = ?)
+          AND e.edge_type IN (${edgePlaceholders})
 
-  const bindings = [
-    gamma, startEntityId, startEntityId, ...edgeTypes,  // base case
-    gamma, ...edgeTypes, maxK,                           // recursive step
-    threshold, limit,                                    // HAVING + LIMIT
-  ];
+        UNION ALL
+
+        SELECT
+          (CASE WHEN e.source_id = t.node_id THEN e.target_id ELSE e.source_id END) AS node_id,
+          t.depth + 1                                                      AS depth,
+          CAST(t.prop_score * e.weight * e.confidence * ? AS REAL)         AS prop_score,
+          json_insert(t.path, '$[#]', (CASE WHEN e.source_id = t.node_id THEN e.target_id ELSE e.source_id END)) AS path
+        FROM traversal t
+        JOIN edges e ON (e.source_id = t.node_id OR e.target_id = t.node_id)
+          AND e.edge_type IN (${edgePlaceholders})
+        WHERE t.depth < ?
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(t.path) WHERE value = (CASE WHEN e.source_id = t.node_id THEN e.target_id ELSE e.source_id END)
+          )
+      )
+      SELECT
+        en.id, en.name, en.type, en.file_id, en.source, en.metadata, en.created_at,
+        f.path AS file_path,
+        MAX(t.prop_score) AS influence_score,
+        MIN(t.depth) AS min_depth
+      FROM traversal t
+      JOIN entities en ON en.id = t.node_id
+      LEFT JOIN files f ON f.id = en.file_id
+      WHERE en.id != ?
+      GROUP BY en.id
+      HAVING MAX(t.prop_score) >= ?
+      ORDER BY influence_score DESC
+      LIMIT ?
+    `;
+    bindings = [
+      startEntityId, gamma, startEntityId, startEntityId, startEntityId, startEntityId, ...edgeTypes,
+      gamma, ...edgeTypes, maxK,
+      startEntityId, threshold, limit,
+    ];
+  }
 
   return db.prepare(sql).all(...bindings) as unknown as EntityWithScore[];
 }
@@ -149,7 +190,7 @@ export function detectConflicts(entityId: string): ConflictResult[] {
     JOIN entities eb ON eb.id = e.target_id
     LEFT JOIN files fa ON fa.id = ea.file_id
     LEFT JOIN files fb ON fb.id = eb.file_id
-    WHERE e.edge_type = 'CONFLICTS_WITH'
+    WHERE e.edge_type IN ('CONFLICTS_WITH', 'SUPERSEDES')
       AND (e.source_id = ? OR e.target_id = ?)
     ORDER BY e.confidence DESC
   `;

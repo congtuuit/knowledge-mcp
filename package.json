@@ -30,7 +30,9 @@
     "reindex": "tsx scripts/reindex.ts",
     "reindex:build": "node dist/scripts/reindex.js",
     "test": "tsx scripts/test-mcp-server.ts",
-    "test:all": "tsx scripts/test-db.ts && tsx scripts/test-chunker.ts && tsx scripts/test-search.ts && tsx scripts/test-mcp-server.ts"
+    "test:all": "tsx scripts/test-db.ts && tsx scripts/test-chunker.ts && tsx scripts/test-search.ts && tsx scripts/test-mcp-server.ts",
+    "benchmark": "tsx benchmarks/run-benchmark.ts",
+    "benchmark:generate": "tsx benchmarks/generators/synthetic-vault-generator.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

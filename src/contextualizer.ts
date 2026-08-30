@@ -46,6 +46,7 @@ ${chunkContent}
         temperature: 0.2,
         stream: false,
       }),
+      signal: AbortSignal.timeout(1500),
     });
 
     if (!res.ok) {

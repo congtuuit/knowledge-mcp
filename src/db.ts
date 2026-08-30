@@ -79,6 +79,21 @@ export interface InsertChunkInput {
 
 let dbInstance: DatabaseSync | null = null;
 
+export function closeDb(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {
+      // ignore
+    }
+    dbInstance = null;
+  }
+}
+
+export function resetDbInstance(): void {
+  closeDb();
+}
+
 export function serializeEmbedding(vec: number[] | Float32Array): Uint8Array {
   const floatArray = vec instanceof Float32Array ? vec : Float32Array.from(vec);
   return new Uint8Array(floatArray.buffer, floatArray.byteOffset, floatArray.byteLength);
@@ -319,15 +334,15 @@ export function upsertEntity(params: {
   const now = Date.now();
   const metaJson = params.metadata ? JSON.stringify(params.metadata) : null;
 
-  // Upsert by (name, type) — treat as unique identity
+  // Upsert by name (case-insensitive) — entity name is unique in graph
   const existing = db
-    .prepare("SELECT id FROM entities WHERE name = ? COLLATE NOCASE AND type = ?")
-    .get(params.name, params.type) as { id: string } | undefined;
+    .prepare("SELECT id FROM entities WHERE name = ? COLLATE NOCASE")
+    .get(params.name) as { id: string } | undefined;
 
   if (existing) {
     db.prepare(
-      "UPDATE entities SET file_id = ?, source = ?, metadata = ? WHERE id = ?"
-    ).run(params.fileId ?? null, params.source, metaJson, existing.id);
+      "UPDATE entities SET type = ?, file_id = COALESCE(?, file_id), source = ?, metadata = COALESCE(?, metadata) WHERE id = ?"
+    ).run(params.type, params.fileId ?? null, params.source, metaJson, existing.id);
     return existing.id;
   }
 
