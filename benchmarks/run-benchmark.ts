@@ -3,7 +3,7 @@ import path from "node:path";
 import { generateSyntheticVault } from "./generators/synthetic-vault-generator.js";
 import { convertStandardDatasetToVault } from "./generators/hf-dataset-loader.js";
 import { runFullBenchmark } from "./runners/benchmark-engine.js";
-import { generateMarkdownReport } from "./evaluators/report-generator.js";
+import { generateMarkdownReport, generateEnglishMarkdownReport } from "./evaluators/report-generator.js";
 
 async function main() {
   console.log("==================================================================");
@@ -26,6 +26,7 @@ async function main() {
   );
   const dbPath = path.resolve("./db/knowledge_benchmark.db");
   const reportPath = path.resolve("./BENCHMARK_REPORT.md");
+  const reportPathEn = path.resolve("./BENCHMARK_REPORT.en.md");
 
   // 1. Sinh Dataset
   if (datasetArg === "standard") {
@@ -54,12 +55,14 @@ async function main() {
     dbPath,
   });
 
-  // 3. Xuất Báo Cáo Markdown
-  console.log("\n[3/3] 📄 Generating Comprehensive Benchmark Markdown Report...");
-  const markdownReport = generateMarkdownReport(reportData);
-  fs.writeFileSync(reportPath, markdownReport, "utf8");
+  // 3. Xuất Báo Cáo Markdown (Tiếng Việt & English)
+  console.log("\n[3/3] 📄 Generating Comprehensive Benchmark Markdown Reports (VI & EN)...");
+  const markdownReportVi = generateMarkdownReport(reportData);
+  const markdownReportEn = generateEnglishMarkdownReport(reportData);
+  fs.writeFileSync(reportPath, markdownReportVi, "utf8");
+  fs.writeFileSync(reportPathEn, markdownReportEn, "utf8");
 
-  console.log(`[3/3] ✅ Report saved successfully to: ${reportPath}`);
+  console.log(`[3/3] ✅ Reports saved successfully to:\n   - ${reportPath} (VI)\n   - ${reportPathEn} (EN)`);
 
   // In bảng tóm tắt ra console
   console.log("\n==================================================================");
