@@ -179,27 +179,90 @@ export async function runIngest(options?: IngestOptions): Promise<IngestStats> {
       const texts = pendingNew.map((p) => p.contextualizedContent);
       const embeddings = await embedBatch(texts, 10); // batchSize=10
 
-      for (let j = 0; j < pendingNew.length; j++) {
-        const { chunk, chunkIndex, contentHash, contextualizedContent } = pendingNew[j];
-        const embedding = embeddings[j];
+      // Wrap chunk inserts + graph extraction in a single transaction per file
+      // for significantly reduced SQLite WAL overhead.
+      // node:sqlite's DatabaseSync does not have .transaction() — use SAVEPOINT instead.
+      const db = getDb();
+      const savepointName = `sp_ingest_${Date.now()}`;
+      db.exec(`SAVEPOINT "${savepointName}";`);
+      let batchOk = false;
+      try {
+        for (let j = 0; j < pendingNew.length; j++) {
+          const { chunk, chunkIndex, contentHash, contextualizedContent } = pendingNew[j];
+          const embedding = embeddings[j];
 
-        if (!embedding) {
-          console.warn(
-            `[Ingest] No embedding for chunk ${chunkIndex} of '${relPath}' ` +
-            `(embedding gateway unavailable?)`
-          );
+          if (!embedding) {
+            console.warn(
+              `[Ingest] No embedding for chunk ${chunkIndex} of '${relPath}' ` +
+              `(embedding gateway unavailable?)`
+            );
+          }
+
+          insertChunk({
+            fileId,
+            chunkIndex,
+            headingPath: chunk.headingPath,
+            content: chunk.content,
+            contextualizedContent,
+            contentHash,
+            embedding,
+            embeddingModel: embedding ? config.embedding.model : null,
+          });
         }
 
-        insertChunk({
-          fileId,
-          chunkIndex,
-          headingPath: chunk.headingPath,
-          content: chunk.content,
-          contextualizedContent,
-          contentHash,
-          embedding,
-          embeddingModel: embedding ? config.embedding.model : null,
-        });
+        // Graph extraction also runs inside the same savepoint
+        if (ext === ".md") {
+          try {
+            const parsed = chunkMarkdown(fileContent);
+            const graphData = extractGraph(relPath, parsed.frontmatter, fileContent);
+
+            deleteEntitiesByFile(fileId);
+
+            const entityId = upsertEntity({
+              name: graphData.entity.name,
+              type: graphData.entity.type,
+              fileId,
+              source: graphData.entity.source,
+              metadata: Object.keys(graphData.entity.metadata).length > 0
+                ? graphData.entity.metadata
+                : null,
+            });
+
+            const fileChunks = getChunksByFile(fileId);
+            for (const chunk of fileChunks) {
+              linkEntityToChunk(entityId, chunk.id);
+            }
+
+            for (const edge of graphData.edges) {
+              const targetEntityId = upsertEntity({
+                name: edge.targetName,
+                type: "document",
+                fileId: null,
+                source: "auto_link",
+                metadata: null,
+              });
+
+              upsertEdge({
+                sourceId: entityId,
+                targetId: targetEntityId,
+                edgeType: edge.edgeType,
+                weight: edge.weight,
+                confidence: edge.confidence,
+                sourceType: edge.sourceType,
+              });
+            }
+          } catch (err) {
+            console.warn(`[Ingest] Graph extraction failed for ${relPath}:`, err);
+          }
+        }
+        batchOk = true;
+      } finally {
+        if (batchOk) {
+          db.exec(`RELEASE "${savepointName}";`);
+        } else {
+          db.exec(`ROLLBACK TO "${savepointName}";`);
+          db.exec(`RELEASE "${savepointName}";`);
+        }
       }
     }
 
@@ -210,60 +273,7 @@ export async function runIngest(options?: IngestOptions): Promise<IngestStats> {
         stats.chunksDeleted++;
       }
     }
-
-    // ------------------------------------------
-    // Graph Extraction (rule-based, zero-token)
-    // ------------------------------------------
-    if (ext === ".md") {
-      try {
-        const parsed = chunkMarkdown(fileContent);
-        const graphData = extractGraph(relPath, parsed.frontmatter, fileContent);
-
-        // Delete old entities for this file before re-inserting
-        deleteEntitiesByFile(fileId);
-
-        // Upsert the entity representing this file
-        const entityId = upsertEntity({
-          name: graphData.entity.name,
-          type: graphData.entity.type,
-          fileId,
-          source: graphData.entity.source,
-          metadata: Object.keys(graphData.entity.metadata).length > 0
-            ? graphData.entity.metadata
-            : null,
-        });
-
-        // Link entity -> all chunks of this file
-        const fileChunks = getChunksByFile(fileId);
-        for (const chunk of fileChunks) {
-          linkEntityToChunk(entityId, chunk.id);
-        }
-
-        // Upsert edges: ensure target entities exist (as stubs), then create edge
-        for (const edge of graphData.edges) {
-          // Stub entity for the target (will be enriched when target file is ingested)
-          const targetEntityId = upsertEntity({
-            name: edge.targetName,
-            type: "document",
-            fileId: null,
-            source: "auto_link",
-            metadata: null,
-          });
-
-          upsertEdge({
-            sourceId: entityId,
-            targetId: targetEntityId,
-            edgeType: edge.edgeType,
-            weight: edge.weight,
-            confidence: edge.confidence,
-            sourceType: edge.sourceType,
-          });
-        }
-      } catch (err) {
-        console.warn(`[Ingest] Graph extraction failed for ${relPath}:`, err);
-      }
-    }
-  }
+  } // end of filesToProcess loop
 
   // Prune deleted files if scanning entire vault
   if (!options?.onlyFile) {

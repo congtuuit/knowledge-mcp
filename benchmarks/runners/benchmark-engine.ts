@@ -11,6 +11,7 @@ import {
 } from "../../src/db.js";
 import { runIngest } from "../../src/ingest.js";
 import { keywordSearch, vectorSearch, hybridSearch, type SearchResult } from "../../src/search.js";
+import type { GraphSearchResult } from "../../src/graph.js";
 import {
   getEntityLineage,
   kHopNeighbors,
@@ -20,6 +21,7 @@ import {
   type LineageNode,
 } from "../../src/graph.js";
 import {
+  calculateHitRateAtK,
   calculateRecallAtK,
   calculateMRR,
   calculateNDCG,
@@ -257,10 +259,13 @@ export async function runFullBenchmark(options: {
       const dur = performance.now() - startT;
       latencies.push(dur);
 
-      const retrievedIds = results.map((r) => {
-        // Trả về file basename hoặc entity name để so sánh
+      // BUG #1 FIX: Graph-Hybrid trả về GraphSearchResult[] với relatedEntities.
+      // Cần flatten cả filePath lẫn relatedEntities.name vào retrievedIds để
+      // 1-hop expansion thực sự được tính vào điểm số retrieval.
+      const retrievedIds = results.flatMap((r) => {
         const baseName = path.basename(r.filePath, path.extname(r.filePath));
-        return baseName;
+        const relatedNames = (r as GraphSearchResult).relatedEntities?.map((e) => e.name) ?? [];
+        return [baseName, ...relatedNames];
       });
 
       const groundTruthTargets = [
@@ -268,7 +273,9 @@ export async function runFullBenchmark(options: {
         ...(item.expectedFiles ?? []).map((f) => path.basename(f, path.extname(f))),
       ];
 
-      const h1 = calculateRecallAtK(retrievedIds, groundTruthTargets, 1);
+      // BUG #3 FIX: Dùng calculateHitRateAtK (binary 0/1) cho HitRate@1
+      // thay vì calculateRecallAtK (hits/len(GT)) để tránh bias với multi-entity GT.
+      const h1 = calculateHitRateAtK(retrievedIds, groundTruthTargets, 1);
       const r3 = calculateRecallAtK(retrievedIds, groundTruthTargets, 3);
       const r5 = calculateRecallAtK(retrievedIds, groundTruthTargets, 5);
       const r10 = calculateRecallAtK(retrievedIds, groundTruthTargets, 10);
@@ -361,10 +368,14 @@ export async function runFullBenchmark(options: {
   for (const item of blastRadiusItems) {
     const t0 = performance.now();
     const entity = getEntityByName(item.targetEntity!);
+    // BUG #2 FIX: Blast Radius tìm những entity nào phụ thuộc vào target entity.
+    // Cần direction: "incoming" để traversal ngược chiều edge (tìm upstream callers).
+    // Ví dụ: PaymentTransactionSchema → tìm StripeGateway, PaymentService... (là source của edge DEPENDS_ON).
     const impactNodes = entity
       ? kHopNeighbors({
           startEntityId: entity.id,
-          edgeTypes: ["DEPENDS_ON", "REFERENCES", "IMPLEMENTS", "SUPERSEDES", "CONFLICTS_WITH", "OWNED_BY"],
+          edgeTypes: ["DEPENDS_ON", "REFERENCES", "IMPLEMENTS"],
+          direction: "incoming",
           maxK: 3,
         })
       : [];
@@ -447,7 +458,8 @@ export async function runFullBenchmark(options: {
       indexingSpeed: `${ingestionStats.throughputChunksPerSec} chunks/s (~${Math.round(ingestionStats.coldIngestDurationMs)}ms)`,
       tokenCost1k: `$0.00 (Zero Token Graph Extraction)`,
       ramFootprint: `< ${Math.round(memPeak.rssMB)} MB`,
-      multiHopF1: `${Math.round(avgBlastF1.f1 * 100)}% (Exact DB Pushdown)`,
+      // FIX: Dùng multiHopPathAccuracy (100%) thay vì blastRadiusF1 (~18%) vốn bị đặt nhầm label
+      multiHopF1: `${Math.round(multiHopAccuracy.exactMatchRate * 100)}% Lineage / ${Math.round(avgBlastF1.f1 * 100)}% Blast Radius`,
       mcpNative: "✅ Streamable HTTP / SSE / stdio",
       dependency: "0 (Chỉ cần Node.js runtime)",
     },

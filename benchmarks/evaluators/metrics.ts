@@ -1,5 +1,11 @@
 /**
  * Các công thức và thuật toán đánh giá chuẩn quốc tế (BEIR / RAGAS / Information Retrieval)
+ *
+ * BUG #3 FIX (2026-08-30):
+ *  - Tách riêng calculateHitRateAtK() (binary: 1.0 nếu top-K chứa ít nhất 1 GT item)
+ *    khỏi calculateRecallAtK() (phần trăm GT items được tìm thấy trong top-K).
+ *  - Trước đây calculateRecallAtK(k=1) trả về hits/len(GT) thay vì 0 hoặc 1,
+ *    khiến HitRate@1 bị giảm nhân tạo với queries có nhiều expected entities.
  */
 
 export interface EvaluationResult {
@@ -18,7 +24,27 @@ export interface SetMetricResult {
 }
 
 /**
- * Tính Recall@K hoặc HitRate@K
+ * HitRate@K (chuẩn BEIR):
+ * Trả về 1.0 nếu top-K results chứa ít nhất 1 ground truth item.
+ * Trả về 0.0 nếu không tìm thấy item nào.
+ * Đây là số nhị phân (binary), không phụ thuộc vào tổng số GT items.
+ */
+export function calculateHitRateAtK(
+  retrievedIds: string[],
+  groundTruthIds: string[],
+  k: number
+): number {
+  if (!groundTruthIds || groundTruthIds.length === 0) return 1.0;
+  const topK = retrievedIds.slice(0, k).map((id) => id.toLowerCase().trim());
+  const gtSet = new Set(groundTruthIds.map((id) => id.toLowerCase().trim()));
+  return topK.some((id) => gtSet.has(id)) ? 1.0 : 0.0;
+}
+
+/**
+ * Recall@K (chuẩn BEIR):
+ * Tỷ lệ bao nhiêu phần trăm ground truth items được tìm thấy trong top-K.
+ * = |{GT items found in top-K}| / |{total GT items}|
+ * Giá trị trong khoảng [0.0, 1.0].
  */
 export function calculateRecallAtK(
   retrievedIds: string[],

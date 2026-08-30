@@ -117,8 +117,55 @@ export function kHopNeighbors(params: {
       gamma, ...edgeTypes, maxK,
       threshold, limit,
     ];
+  } else if (direction === "incoming") {
+    // Traversal NGUỢC CHIỀU: Tìm những entity NÀO phụ thuộc vào startEntity.
+    // edge.target_id = startEntity, chúng ta đi lên source_id (à là upstream callers).
+    sql = `
+      WITH RECURSIVE traversal(node_id, depth, prop_score, path) AS (
+        SELECT
+          e.source_id                              AS node_id,
+          1                                        AS depth,
+          (e.weight * e.confidence * ?)            AS prop_score,
+          json_array(?, e.source_id)               AS path
+        FROM edges e
+        WHERE e.target_id = ?
+          AND e.edge_type IN (${edgePlaceholders})
+
+        UNION ALL
+
+        SELECT
+          e.source_id                                                      AS node_id,
+          t.depth + 1                                                      AS depth,
+          CAST(t.prop_score * e.weight * e.confidence * ? AS REAL)         AS prop_score,
+          json_insert(t.path, '$[#]', e.source_id)                         AS path
+        FROM traversal t
+        JOIN edges e ON e.target_id = t.node_id
+          AND e.edge_type IN (${edgePlaceholders})
+        WHERE t.depth < ?
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(t.path) WHERE value = e.source_id
+          )
+      )
+      SELECT
+        en.id, en.name, en.type, en.file_id, en.source, en.metadata, en.created_at,
+        f.path AS file_path,
+        MAX(t.prop_score) AS influence_score,
+        MIN(t.depth) AS min_depth
+      FROM traversal t
+      JOIN entities en ON en.id = t.node_id
+      LEFT JOIN files f ON f.id = en.file_id
+      GROUP BY en.id
+      HAVING MAX(t.prop_score) >= ?
+      ORDER BY influence_score DESC
+      LIMIT ?
+    `;
+    bindings = [
+      gamma, startEntityId, startEntityId, ...edgeTypes,
+      gamma, ...edgeTypes, maxK,
+      threshold, limit,
+    ];
   } else {
-    // direction === "both" or "incoming"
+    // direction === "both": Tìm cả hai chiều (outgoing và incoming)
     sql = `
       WITH RECURSIVE traversal(node_id, depth, prop_score, path) AS (
         SELECT

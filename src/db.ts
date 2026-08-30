@@ -116,6 +116,13 @@ export function getDb(): DatabaseSync {
   const db = new DatabaseSync(config.dbPath);
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec("PRAGMA journal_mode = WAL;");
+  // Performance tuning: cache, mmap, temp storage, WAL checkpoint
+  db.exec("PRAGMA synchronous = NORMAL;");      // An toàn + nhanh hơn FULL (default)
+  db.exec("PRAGMA cache_size = -65536;");       // 64 MB page cache (KB âm)
+  db.exec("PRAGMA temp_store = MEMORY;");       // Temp tables in RAM (FTS5 queries)
+  db.exec("PRAGMA mmap_size = 268435456;");     // 256 MB memory-mapped I/O
+  db.exec("PRAGMA wal_autocheckpoint = 1000;"); // Checkpoint sau 1000 WAL pages
+  db.exec("PRAGMA optimize;");                  // Auto-analyze statistics
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS files (
